@@ -22,15 +22,20 @@ fn main() -> Result<(), io::Error> {
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
-    let map = Map::first_floor();
+    let mut map = Map::first_floor();
 
     loop {
         terminal.draw(|f| ui(f, &map))?;
 
         // when q is pressed, finish the program
         if let Event::Key(key) = event::read()? {
-            if let KeyCode::Char('q') = key.code {
-                break;
+            match key.code {
+                KeyCode::Char('q') => break,
+                KeyCode::Char('w') | KeyCode::Char('j') | KeyCode::Up => map.move_up(),
+                KeyCode::Char('s') | KeyCode::Char('k') | KeyCode::Down => map.move_down(),
+                KeyCode::Char('a') | KeyCode::Char('h') | KeyCode::Left => map.move_left(),
+                KeyCode::Char('d') | KeyCode::Char('l') | KeyCode::Right => map.move_right(),
+                _ => {}
             }
         }
     }
@@ -50,7 +55,10 @@ fn main() -> Result<(), io::Error> {
 fn ui<B: Backend>(f: &mut Frame<B>, map: &Map) {
     let term_size = f.size();
 
-    if term_size.width < Map::WIDTH || term_size.height < Map::HEIGHT {
+    let view_width = Map::WIDTH + 2;
+    let view_height = Map::HEIGHT + 2;
+
+    if term_size.width < view_width || term_size.height < view_height {
         let message = Paragraph::new(Text::raw(
             "Terminal is too small, resize or press q to quit.",
         ))
@@ -59,9 +67,9 @@ fn ui<B: Backend>(f: &mut Frame<B>, map: &Map) {
         return;
     }
 
-    let left_padding = (term_size.width - Map::WIDTH) / 2;
-    let top_padding = (term_size.height - Map::HEIGHT) / 2;
-    let size = Rect::new(left_padding, top_padding, Map::WIDTH, Map::HEIGHT);
+    let left_padding = (term_size.width - view_width) / 2;
+    let top_padding = (term_size.height - view_height) / 2;
+    let size = Rect::new(left_padding, top_padding, view_width, view_height);
     let block = Block::default()
         .title(format!("floor {}", map.floor))
         .title_alignment(Alignment::Center)
@@ -73,7 +81,8 @@ fn ui<B: Backend>(f: &mut Frame<B>, map: &Map) {
         let text = Text::raw(tile.to_string());
         f.render_widget(
             Paragraph::new(text),
-            Rect::new(pos.x + left_padding, pos.y + top_padding, 1, 1),
+            // need to +1 because map 0 shouldn't match view 0
+            Rect::new(pos.x + left_padding + 1, pos.y + top_padding + 1, 1, 1),
         );
     }
 }
@@ -156,17 +165,34 @@ impl Map {
     /// TODO
     fn tiles(&self) -> Vec<(Position, Tile)> {
         let mut tiles: Vec<_> = self.tiles.clone().into_iter().collect();
+        // FIXME this is weird, probably should be somewhere else
         tiles.push((self.character_position.clone(), Tile::Character));
         tiles
     }
 
-    fn move_up(&mut self) {}
+    fn move_up(&mut self) {
+        if self.character_position.y > 0 {
+            self.character_position.y -= 1;
+        }
+    }
 
-    fn move_down(&mut self) {}
+    fn move_down(&mut self) {
+        if self.character_position.y < self.height - 1 {
+            self.character_position.y += 1;
+        }
+    }
 
-    fn move_left(&mut self) {}
+    fn move_left(&mut self) {
+        if self.character_position.x > 0 {
+            self.character_position.x -= 1;
+        }
+    }
 
-    fn move_right(&mut self) {}
+    fn move_right(&mut self) {
+        if self.character_position.x < self.width - 1 {
+            self.character_position.x += 1;
+        }
+    }
 }
 
 #[derive(Clone)]
