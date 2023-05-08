@@ -22,19 +22,19 @@ fn main() -> Result<(), io::Error> {
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
-    let mut map = Map::first_floor();
+    let mut game = Game::new();
 
     loop {
-        terminal.draw(|f| ui(f, &map))?;
+        terminal.draw(|f| ui(f, &game))?;
 
         // when q is pressed, finish the program
         if let Event::Key(key) = event::read()? {
             match key.code {
                 KeyCode::Char('q') => break,
-                KeyCode::Char('w') | KeyCode::Char('j') | KeyCode::Up => map.move_up(),
-                KeyCode::Char('s') | KeyCode::Char('k') | KeyCode::Down => map.move_down(),
-                KeyCode::Char('a') | KeyCode::Char('h') | KeyCode::Left => map.move_left(),
-                KeyCode::Char('d') | KeyCode::Char('l') | KeyCode::Right => map.move_right(),
+                KeyCode::Char('w') | KeyCode::Char('j') | KeyCode::Up => game.move_up(),
+                KeyCode::Char('s') | KeyCode::Char('k') | KeyCode::Down => game.move_down(),
+                KeyCode::Char('a') | KeyCode::Char('h') | KeyCode::Left => game.move_left(),
+                KeyCode::Char('d') | KeyCode::Char('l') | KeyCode::Right => game.move_right(),
                 _ => {}
             }
         }
@@ -52,7 +52,7 @@ fn main() -> Result<(), io::Error> {
     Ok(())
 }
 
-fn ui<B: Backend>(f: &mut Frame<B>, map: &Map) {
+fn ui<B: Backend>(f: &mut Frame<B>, game: &Game) {
     let term_size = f.size();
 
     let view_width = Map::WIDTH + 2;
@@ -71,13 +71,13 @@ fn ui<B: Backend>(f: &mut Frame<B>, map: &Map) {
     let top_padding = (term_size.height - view_height) / 2;
     let size = Rect::new(left_padding, top_padding, view_width, view_height);
     let block = Block::default()
-        .title(format!("floor {}", map.floor))
+        .title(format!("floor {}", game.floor))
         .title_alignment(Alignment::Center)
         .borders(Borders::ALL);
 
     f.render_widget(block, size);
 
-    for (pos, tile) in map.tiles() {
+    for (pos, tile) in game.tiles() {
         let text = Text::raw(tile.to_string());
         f.render_widget(
             Paragraph::new(text),
@@ -87,68 +87,129 @@ fn ui<B: Backend>(f: &mut Frame<B>, map: &Map) {
     }
 }
 
-#[derive(Eq, Hash, PartialEq, Clone)]
-struct Position {
-    pub x: u16,
-    pub y: u16,
+struct Game {
+    pub floor: usize,
+    // this may eventually need to distinguish between tilemap and itemmap, maybe moving char position back to the map
+    pub maps: Vec<Map>,
+    pub character_position: Position,
+}
+
+impl Game {
+    /// TODO
+    fn new() -> Self {
+        let first_map = Map::new(0);
+        let character_position = first_map.random_position();
+        Self {
+            floor: 0,
+            character_position,
+            maps: vec![first_map],
+        }
+    }
+
+    /// TODO
+    pub fn tiles(&self) -> Vec<(Position, Tile)> {
+        let mut tiles: Vec<_> = self.maps[self.floor].tiles.clone().into_iter().collect();
+        tiles.push((self.character_position.clone(), Tile::Character));
+        tiles
+    }
+
+    pub fn move_up(&mut self) {
+        if self.character_position.y > 0 {
+            self.character_position.y -= 1;
+        }
+        self.update_floor();
+    }
+
+    pub fn move_down(&mut self) {
+        if self.character_position.y < self.maps[self.floor].height - 1 {
+            self.character_position.y += 1;
+        }
+        self.update_floor();
+    }
+
+    pub fn move_left(&mut self) {
+        if self.character_position.x > 0 {
+            self.character_position.x -= 1;
+        }
+        self.update_floor();
+    }
+
+    pub fn move_right(&mut self) {
+        if self.character_position.x < self.maps[self.floor].width - 1 {
+            self.character_position.x += 1;
+        }
+        self.update_floor();
+    }
+
+    /// TODO
+    fn update_floor(&mut self) {
+        match self.maps[self.floor].tiles.get(&self.character_position) {
+            Some(Tile::LadderUp) => {
+                self.floor -= 1;
+
+                // start at the ladder
+                self.character_position = self.maps[self.floor]
+                    .find_tile(Tile::LadderDown)
+                    .expect("all floors have a ladder down");
+            }
+            Some(Tile::LadderDown) => {
+                self.floor += 1;
+
+                if self.floor == self.maps.len() {
+                    // haven't been to this floor before, need to create a new one
+                    self.maps.push(Map::new(self.floor));
+                }
+
+                // start at the ladder
+                self.character_position = self.maps[self.floor]
+                    .find_tile(Tile::LadderUp)
+                    .expect("all non zero floors have a ladder up");
+            }
+            _ => {}
+        }
+    }
 }
 
 struct Map {
     pub width: u16,
     pub height: u16,
-
-    // for now working with a fixed map size and assuming that the view size
-    // is the same. later those can be separated and scrolling can be introduced
-    // to handle bigger maps and smaller terminal sizes.
-    pub floor: u16,
-    pub character_position: Position,
     tiles: HashMap<Position, Tile>,
 }
 
 impl Map {
+    // for now working with a fixed map size and assuming that the view size
+    // is the same. later those can be separated and scrolling can be introduced
+    // to handle bigger maps and smaller terminal sizes.
     pub const WIDTH: u16 = 80;
     pub const HEIGHT: u16 = 20;
 
     // FIXME turn into default
     /// Create a map for the first floor, with randomly placed character and down ladder.
-    pub fn first_floor() -> Self {
+    pub fn new(floor: usize) -> Self {
         let mut map = Self {
             width: Self::WIDTH,
             height: Self::HEIGHT,
-            floor: 0,
             tiles: HashMap::new(),
-
-            // placeholder initialization
-            character_position: Position { x: 0, y: 0 },
         };
 
         map.tiles.insert(map.random_position(), Tile::LadderDown);
-        map.character_position = map.random_position();
+        if floor > 0 {
+            map.tiles.insert(map.random_position(), Tile::LadderUp);
+        }
         map
     }
 
-    /// Create a map for the floor below the given one, with randomly placed up and down ladders,
-    /// and the character starting at the position of the up ladder.
-    pub fn next_floor(&self) -> Self {
-        let mut map = Self {
-            width: self.width,
-            height: self.height,
-            floor: self.floor + 1,
-            tiles: HashMap::new(),
-
-            // placeholder initialization
-            character_position: Position { x: 0, y: 0 },
-        };
-
-        let up_position = map.random_position();
-        map.tiles.insert(up_position.clone(), Tile::LadderUp);
-        map.character_position = up_position;
-        map.tiles.insert(map.random_position(), Tile::LadderDown);
-        map
+    fn find_tile(&self, expected: Tile) -> Option<Position> {
+        for (pos, current) in self.tiles.iter() {
+            if *current == expected {
+                return Some(pos.clone());
+            }
+        }
+        None
     }
 
     /// Return a random and unused position within the map to place a new tile.
-    fn random_position(&self) -> Position {
+    pub fn random_position(&self) -> Position {
         let mut rng = rand::thread_rng();
 
         loop {
@@ -161,41 +222,9 @@ impl Map {
             }
         }
     }
-
-    /// TODO
-    fn tiles(&self) -> Vec<(Position, Tile)> {
-        let mut tiles: Vec<_> = self.tiles.clone().into_iter().collect();
-        // FIXME this is weird, probably should be somewhere else
-        tiles.push((self.character_position.clone(), Tile::Character));
-        tiles
-    }
-
-    fn move_up(&mut self) {
-        if self.character_position.y > 0 {
-            self.character_position.y -= 1;
-        }
-    }
-
-    fn move_down(&mut self) {
-        if self.character_position.y < self.height - 1 {
-            self.character_position.y += 1;
-        }
-    }
-
-    fn move_left(&mut self) {
-        if self.character_position.x > 0 {
-            self.character_position.x -= 1;
-        }
-    }
-
-    fn move_right(&mut self) {
-        if self.character_position.x < self.width - 1 {
-            self.character_position.x += 1;
-        }
-    }
 }
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 enum Tile {
     Character,
     LadderUp,
@@ -211,4 +240,10 @@ impl Tile {
             Tile::LadderDown => "↓",
         }
     }
+}
+
+#[derive(Eq, Hash, PartialEq, Clone)]
+struct Position {
+    pub x: u16,
+    pub y: u16,
 }
