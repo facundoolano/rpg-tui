@@ -1,14 +1,14 @@
-use std::{io, thread, time::Duration};
-use tui::{
-    backend::CrosstermBackend,
-    widgets::{Widget, Block, Borders},
-    layout::{Layout, Constraint, Direction, Rect, Alignment},
-    Terminal
-};
 use crossterm::{
     event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode},
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
+};
+use std::io;
+use tui::{
+    backend::CrosstermBackend,
+    layout::{Alignment, Rect},
+    widgets::{Block, Borders},
+    Terminal,
 };
 
 // for now working with a fixed map size and assuming that the view size
@@ -25,19 +25,26 @@ fn main() -> Result<(), io::Error> {
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
-    terminal.draw(|f| {
-        let term_size = f.size();
-        let left_padding = (term_size.width - MAP_WIDTH) / 2;
-        let top_padding = (term_size.height - MAP_HEIGHT) / 2;
-        let size = Rect::new(left_padding, top_padding, MAP_WIDTH, MAP_HEIGHT);
-        let block = Block::default()
-            .title("rpg-tui")
-            .title_alignment(Alignment::Center)
-            .borders(Borders::ALL);
-        f.render_widget(block, size);
-    })?;
+    loop {
+        terminal.draw(|f| {
+            let term_size = f.size();
+            let left_padding = (term_size.width - MAP_WIDTH) / 2;
+            let top_padding = (term_size.height - MAP_HEIGHT) / 2;
+            let size = Rect::new(left_padding, top_padding, MAP_WIDTH, MAP_HEIGHT);
+            let block = Block::default()
+                .title("rpg-tui")
+                .title_alignment(Alignment::Center)
+                .borders(Borders::ALL);
+            f.render_widget(block, size);
+        })?;
 
-    thread::sleep(Duration::from_millis(5000));
+        // when q is pressed, finish the program
+        if let Event::Key(key) = event::read()? {
+            if let KeyCode::Char('q') = key.code {
+                break;
+            }
+        }
+    }
 
     // restore terminal
     disable_raw_mode()?;
