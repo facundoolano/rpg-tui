@@ -5,11 +5,11 @@ use crossterm::{
 };
 use std::io;
 use tui::{
-    backend::CrosstermBackend,
+    backend::{Backend, CrosstermBackend},
     layout::{Alignment, Rect},
     text::Text,
     widgets::{Block, Borders, Paragraph, Wrap},
-    Terminal,
+    Frame, Terminal,
 };
 
 // for now working with a fixed map size and assuming that the view size
@@ -27,27 +27,7 @@ fn main() -> Result<(), io::Error> {
     let mut terminal = Terminal::new(backend)?;
 
     loop {
-        terminal.draw(|f| {
-            let term_size = f.size();
-
-            if term_size.width < MAP_WIDTH || term_size.height < MAP_HEIGHT {
-                let message = Paragraph::new(Text::raw(
-                    "Terminal is too small, resize or press q to quit.",
-                ))
-                .wrap(Wrap { trim: false });
-                f.render_widget(message, term_size);
-                return;
-            }
-
-            let left_padding = (term_size.width - MAP_WIDTH) / 2;
-            let top_padding = (term_size.height - MAP_HEIGHT) / 2;
-            let size = Rect::new(left_padding, top_padding, MAP_WIDTH, MAP_HEIGHT);
-            let block = Block::default()
-                .title("rpg-tui")
-                .title_alignment(Alignment::Center)
-                .borders(Borders::ALL);
-            f.render_widget(block, size);
-        })?;
+        terminal.draw(ui)?;
 
         // when q is pressed, finish the program
         if let Event::Key(key) = event::read()? {
@@ -67,4 +47,26 @@ fn main() -> Result<(), io::Error> {
     terminal.show_cursor()?;
 
     Ok(())
+}
+
+fn ui<B: Backend>(f: &mut Frame<B>) {
+    let term_size = f.size();
+
+    if term_size.width < MAP_WIDTH || term_size.height < MAP_HEIGHT {
+        let message = Paragraph::new(Text::raw(
+            "Terminal is too small, resize or press q to quit.",
+        ))
+        .wrap(Wrap { trim: false });
+        f.render_widget(message, term_size);
+        return;
+    }
+
+    let left_padding = (term_size.width - MAP_WIDTH) / 2;
+    let top_padding = (term_size.height - MAP_HEIGHT) / 2;
+    let size = Rect::new(left_padding, top_padding, MAP_WIDTH, MAP_HEIGHT);
+    let block = Block::default()
+        .title("rpg-tui")
+        .title_alignment(Alignment::Center)
+        .borders(Borders::ALL);
+    f.render_widget(block, size);
 }
