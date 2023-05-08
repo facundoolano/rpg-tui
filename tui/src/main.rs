@@ -25,7 +25,7 @@ fn main() -> Result<(), io::Error> {
     let map = Map::first_floor();
 
     loop {
-        terminal.draw(|mut f| ui(&mut f, &map))?;
+        terminal.draw(|f| ui(f, &map))?;
 
         // when q is pressed, finish the program
         if let Event::Key(key) = event::read()? {
@@ -69,10 +69,19 @@ fn ui<B: Backend>(f: &mut Frame<B>, map: &Map) {
 
     f.render_widget(block, size);
 
-    for ((x, y), tile) in map.tiles.iter() {
+    for (pos, tile) in map.tiles.iter() {
         let text = Text::raw(tile.to_string());
-        f.render_widget(Paragraph::new(text), Rect::new(*x + left_padding, *y + top_padding, 1, 1));
+        f.render_widget(
+            Paragraph::new(text),
+            Rect::new(pos.x + left_padding, pos.y + top_padding, 1, 1),
+        );
     }
+}
+
+#[derive(Eq, Hash, PartialEq, Clone)]
+struct Position {
+    pub x: u16,
+    pub y: u16,
 }
 
 struct Map {
@@ -83,7 +92,7 @@ struct Map {
     // is the same. later those can be separated and scrolling can be introduced
     // to handle bigger maps and smaller terminal sizes.
     pub floor: u16,
-    pub tiles: HashMap<(u16, u16), Tile>,
+    pub tiles: HashMap<Position, Tile>,
 }
 
 impl Map {
@@ -116,23 +125,34 @@ impl Map {
         };
 
         let up_position = map.random_position();
-        map.tiles.insert(up_position, Tile::LadderUp);
+        map.tiles.insert(up_position.clone(), Tile::LadderUp);
         map.tiles.insert(up_position, Tile::Character);
         map.tiles.insert(map.random_position(), Tile::LadderDown);
         map
     }
 
     /// Return a random and unused position within the map to place a new tile.
-    fn random_position(&self) -> (u16, u16) {
+    fn random_position(&self) -> Position {
         let mut rng = rand::thread_rng();
 
         loop {
-            let pos = (rng.gen_range(0..self.width), rng.gen_range(0..self.height));
+            let pos = Position {
+                x: rng.gen_range(0..self.width),
+                y: rng.gen_range(0..self.height),
+            };
             if !self.tiles.contains_key(&pos) {
                 return pos;
             }
         }
     }
+
+    fn move_up(&mut self) {}
+
+    fn move_down(&mut self) {}
+
+    fn move_left(&mut self) {}
+
+    fn move_right(&mut self) {}
 }
 
 enum Tile {
