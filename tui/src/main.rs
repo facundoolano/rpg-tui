@@ -69,7 +69,7 @@ fn ui<B: Backend>(f: &mut Frame<B>, map: &Map) {
 
     f.render_widget(block, size);
 
-    for (pos, tile) in map.tiles.iter() {
+    for (pos, tile) in map.tiles() {
         let text = Text::raw(tile.to_string());
         f.render_widget(
             Paragraph::new(text),
@@ -92,7 +92,8 @@ struct Map {
     // is the same. later those can be separated and scrolling can be introduced
     // to handle bigger maps and smaller terminal sizes.
     pub floor: u16,
-    pub tiles: HashMap<Position, Tile>,
+    pub character_position: Position,
+    tiles: HashMap<Position, Tile>,
 }
 
 impl Map {
@@ -107,10 +108,13 @@ impl Map {
             height: Self::HEIGHT,
             floor: 0,
             tiles: HashMap::new(),
+
+            // placeholder initialization
+            character_position: Position { x: 0, y: 0 },
         };
 
         map.tiles.insert(map.random_position(), Tile::LadderDown);
-        map.tiles.insert(map.random_position(), Tile::Character);
+        map.character_position = map.random_position();
         map
     }
 
@@ -122,11 +126,14 @@ impl Map {
             height: self.height,
             floor: self.floor + 1,
             tiles: HashMap::new(),
+
+            // placeholder initialization
+            character_position: Position { x: 0, y: 0 },
         };
 
         let up_position = map.random_position();
         map.tiles.insert(up_position.clone(), Tile::LadderUp);
-        map.tiles.insert(up_position, Tile::Character);
+        map.character_position = up_position;
         map.tiles.insert(map.random_position(), Tile::LadderDown);
         map
     }
@@ -146,6 +153,13 @@ impl Map {
         }
     }
 
+    /// TODO
+    fn tiles(&self) -> Vec<(Position, Tile)> {
+        let mut tiles: Vec<_> = self.tiles.clone().into_iter().collect();
+        tiles.push((self.character_position.clone(), Tile::Character));
+        tiles
+    }
+
     fn move_up(&mut self) {}
 
     fn move_down(&mut self) {}
@@ -155,6 +169,7 @@ impl Map {
     fn move_right(&mut self) {}
 }
 
+#[derive(Clone)]
 enum Tile {
     Character,
     LadderUp,
