@@ -1,9 +1,11 @@
+// FIXME qualify term imports
 use crossterm::{
     event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode},
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
-use std::io;
+use rand::Rng;
+use std::{io, collections::HashMap};
 use tui::{
     backend::{Backend, CrosstermBackend},
     layout::{Alignment, Rect},
@@ -11,12 +13,6 @@ use tui::{
     widgets::{Block, Borders, Paragraph, Wrap},
     Frame, Terminal,
 };
-
-// for now working with a fixed map size and assuming that the view size
-// is the same. later those can be separated and scrolling can be introduced
-// to handle bigger maps and smaller terminal sizes.
-const MAP_WIDTH: u16 = 80;
-const MAP_HEIGHT: u16 = 20;
 
 fn main() -> Result<(), io::Error> {
     // setup terminal
@@ -52,7 +48,7 @@ fn main() -> Result<(), io::Error> {
 fn ui<B: Backend>(f: &mut Frame<B>) {
     let term_size = f.size();
 
-    if term_size.width < MAP_WIDTH || term_size.height < MAP_HEIGHT {
+    if term_size.width < Map::WIDTH || term_size.height < Map::HEIGHT {
         let message = Paragraph::new(Text::raw(
             "Terminal is too small, resize or press q to quit.",
         ))
@@ -61,12 +57,91 @@ fn ui<B: Backend>(f: &mut Frame<B>) {
         return;
     }
 
-    let left_padding = (term_size.width - MAP_WIDTH) / 2;
-    let top_padding = (term_size.height - MAP_HEIGHT) / 2;
-    let size = Rect::new(left_padding, top_padding, MAP_WIDTH, MAP_HEIGHT);
+    let left_padding = (term_size.width - Map::WIDTH) / 2;
+    let top_padding = (term_size.height - Map::HEIGHT) / 2;
+    let size = Rect::new(left_padding, top_padding, Map::WIDTH, Map::HEIGHT);
     let block = Block::default()
         .title("rpg-tui")
         .title_alignment(Alignment::Center)
         .borders(Borders::ALL);
+
+    f.render_widget(Paragraph::new(Text::raw("@")), Rect::new(Map::WIDTH / 2, Map::HEIGHT / 2, 1, 1));
     f.render_widget(block, size);
+}
+
+struct Map {
+    pub width: u16,
+    pub height: u16,
+
+    // for now working with a fixed map size and assuming that the view size
+    // is the same. later those can be separated and scrolling can be introduced
+    // to handle bigger maps and smaller terminal sizes.
+    floor: u16,
+    tiles: HashMap<(u16, u16), Tile>
+}
+
+impl Map {
+    pub const WIDTH: u16 = 80;
+    pub const HEIGHT: u16 = 20;
+
+    // FIXME turn into default
+    /// Create a map for the first floor, with randomly placed character and down ladder.
+    pub fn first_floor() -> Self {
+        let mut map =
+            Self {
+                width: Self::WIDTH,
+                height: Self::HEIGHT,
+                floor: 0,
+                tiles: HashMap::new(),
+            };
+
+        map.tiles.insert(map.random_position(), Tile::LadderDown);
+        map
+    }
+
+    /// Create a map for the floor below the given one, with randomly placed up and down ladders,
+    /// and the character starting at the position of the up ladder.
+    pub fn next_floor(&self) -> Self {
+        let mut map = Self {
+            width: self.width,
+            height: self.height,
+            floor: self.floor + 1,
+            tiles: HashMap::new()
+        };
+
+        let up_position = map.random_position();
+        map.tiles.insert(up_position, Tile::LadderUp);
+        map.tiles.insert(up_position, Tile::Character);
+        map.tiles.insert(map.random_position(), Tile::LadderDown);
+        map
+    }
+
+    /// Return a random and unused position within the map to place a new tile.
+    fn random_position(&self) -> (u16, u16) {
+        let mut rng = rand::thread_rng();
+
+        loop {
+            let pos = (rng.gen_range(0..self.width), rng.gen_range(0..self.height));
+            if !self.tiles.contains_key(&pos) {
+                return pos
+            }
+        }
+    }
+}
+
+
+enum Tile {
+    Character,
+    LadderUp,
+    LadderDown
+}
+
+impl Tile {
+    fn to_string(&self) -> &'static str {
+        match self {
+            Tile::Character => "@",
+            Tile::LadderUp => "↑",
+            Tile::LadderDown => "↓",
+        }
+    }
 }

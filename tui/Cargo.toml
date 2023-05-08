@@ -8,4 +8,4 @@ edition = "2021"
 [dependencies]
 tui = "0.19"
 crossterm = "0.25"
-unicode-width = "0.1.5"
+rand = { version = "0.8.5", features = ["alloc"] }
