@@ -7,7 +7,8 @@ use std::io;
 use tui::{
     backend::CrosstermBackend,
     layout::{Alignment, Rect},
-    widgets::{Block, Borders},
+    text::Text,
+    widgets::{Block, Borders, Paragraph, Wrap},
     Terminal,
 };
 
@@ -28,6 +29,16 @@ fn main() -> Result<(), io::Error> {
     loop {
         terminal.draw(|f| {
             let term_size = f.size();
+
+            if term_size.width < MAP_WIDTH || term_size.height < MAP_HEIGHT {
+                let message = Paragraph::new(Text::raw(
+                    "Terminal is too small, resize or press q to quit.",
+                ))
+                .wrap(Wrap { trim: false });
+                f.render_widget(message, term_size);
+                return;
+            }
+
             let left_padding = (term_size.width - MAP_WIDTH) / 2;
             let top_padding = (term_size.height - MAP_HEIGHT) / 2;
             let size = Rect::new(left_padding, top_padding, MAP_WIDTH, MAP_HEIGHT);
