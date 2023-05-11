@@ -116,37 +116,63 @@ impl Game {
     }
 
     pub fn move_up(&mut self) {
-        if self.character_position.y > 0 {
-            self.character_position.y -= 1;
+        let dest_position = Position {
+            x: self.character_position.x,
+            y: self.character_position.y - 1,
+        };
+        let is_wall = self.maps[self.floor].tile_at(&dest_position) == Some(Tile::Wall);
+
+        if self.character_position.y > 0 && !is_wall {
+            self.character_position = dest_position;
         }
         self.update_floor();
     }
 
+    // TODO this could be collapsed into a single method
     pub fn move_down(&mut self) {
-        if self.character_position.y < self.maps[self.floor].height - 1 {
-            self.character_position.y += 1;
+        let dest_position = Position {
+            x: self.character_position.x,
+            y: self.character_position.y + 1,
+        };
+        let is_wall = self.maps[self.floor].tile_at(&dest_position) == Some(Tile::Wall);
+
+        // assuming character is always inside a room, it can move as long as its not walking into a wall
+        // this will change if there are other non walkable entities or tiles in the map
+        if !is_wall {
+            self.character_position = dest_position;
         }
         self.update_floor();
     }
 
     pub fn move_left(&mut self) {
-        if self.character_position.x > 0 {
-            self.character_position.x -= 1;
+        let dest_position = Position {
+            x: self.character_position.x - 1,
+            y: self.character_position.y,
+        };
+        let is_wall = self.maps[self.floor].tile_at(&dest_position) == Some(Tile::Wall);
+
+        if self.character_position.x > 0 && !is_wall {
+            self.character_position = dest_position;
         }
         self.update_floor();
     }
 
     pub fn move_right(&mut self) {
-        if self.character_position.x < self.maps[self.floor].width - 1 {
-            self.character_position.x += 1;
+        let dest_position = Position {
+            x: self.character_position.x + 1,
+            y: self.character_position.y,
+        };
+        let is_wall = self.maps[self.floor].tile_at(&dest_position) == Some(Tile::Wall);
+
+        if self.character_position.x < self.maps[self.floor].width - 1 && !is_wall {
+            self.character_position = dest_position;
         }
         self.update_floor();
     }
 
     /// TODO
     fn update_floor(&mut self) {
-        let pos = &self.character_position;
-        match self.maps[self.floor].tile_at(pos.x, pos.y) {
+        match self.maps[self.floor].tile_at(&self.character_position) {
             Some(Tile::LadderUp) => {
                 self.floor -= 1;
 
@@ -195,6 +221,8 @@ impl Map {
             tiles: HashMap::new(),
         };
 
+        // For now generate rectangular maps: a single room covering the whole map with walls
+        // along the borders
         for x in 0..map.width {
             for y in 0..map.height {
                 if y == 0 || y == map.height - 1 || x == 0 || x == map.width - 1 {
@@ -219,9 +247,8 @@ impl Map {
         None
     }
 
-    pub fn tile_at(&self, x: u16, y: u16) -> Option<Tile> {
-        let pos = Position { x, y };
-        self.tiles.get(&pos).cloned()
+    pub fn tile_at(&self, position: &Position) -> Option<Tile> {
+        self.tiles.get(position).cloned()
     }
 
     /// Return a random and unused position within the map to place a new tile.
