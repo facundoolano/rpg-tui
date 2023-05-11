@@ -55,6 +55,7 @@ fn main() -> Result<(), io::Error> {
 fn ui<B: Backend>(f: &mut Frame<B>, game: &Game) {
     let term_size = f.size();
 
+    // FIXME take from terminal
     let view_width = Map::WIDTH + 2;
     let view_height = Map::HEIGHT + 2;
 
@@ -108,6 +109,7 @@ impl Game {
 
     /// TODO
     pub fn tiles(&self) -> Vec<(Position, Tile)> {
+        // FIXME this is a kind of weird method
         let mut tiles: Vec<_> = self.maps[self.floor].tiles.clone().into_iter().collect();
         tiles.push((self.character_position.clone(), Tile::Character));
         tiles
@@ -143,7 +145,8 @@ impl Game {
 
     /// TODO
     fn update_floor(&mut self) {
-        match self.maps[self.floor].tiles.get(&self.character_position) {
+        let pos = &self.character_position;
+        match self.maps[self.floor].tile_at(pos.x, pos.y) {
             Some(Tile::LadderUp) => {
                 self.floor -= 1;
 
@@ -180,8 +183,8 @@ impl Map {
     // for now working with a fixed map size and assuming that the view size
     // is the same. later those can be separated and scrolling can be introduced
     // to handle bigger maps and smaller terminal sizes.
-    pub const WIDTH: u16 = 80;
-    pub const HEIGHT: u16 = 20;
+    const WIDTH: u16 = 80;
+    const HEIGHT: u16 = 20;
 
     // FIXME turn into default
     /// Create a map for the first floor, with randomly placed character and down ladder.
@@ -191,6 +194,14 @@ impl Map {
             height: Self::HEIGHT,
             tiles: HashMap::new(),
         };
+
+        for x in 0..map.width {
+            for y in 0..map.height {
+                if y == 0 || y == map.height - 1 || x == 0 || x == map.width - 1 {
+                    map.tiles.insert(Position { x, y }, Tile::Wall);
+                }
+            }
+        }
 
         map.tiles.insert(map.random_position(), Tile::LadderDown);
         if floor > 0 {
@@ -206,6 +217,11 @@ impl Map {
             }
         }
         None
+    }
+
+    pub fn tile_at(&self, x: u16, y: u16) -> Option<Tile> {
+        let pos = Position { x, y };
+        self.tiles.get(&pos).cloned()
     }
 
     /// Return a random and unused position within the map to place a new tile.
@@ -229,6 +245,7 @@ enum Tile {
     Character,
     LadderUp,
     LadderDown,
+    Wall,
 }
 
 impl Tile {
@@ -238,10 +255,12 @@ impl Tile {
             Tile::Character => "@",
             Tile::LadderUp => "↑",
             Tile::LadderDown => "↓",
+            Tile::Wall => "#",
         }
     }
 }
 
+// TODO make this interoperable with tuples
 #[derive(Eq, Hash, PartialEq, Clone)]
 struct Position {
     pub x: u16,
