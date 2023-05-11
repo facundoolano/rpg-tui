@@ -83,7 +83,10 @@ fn ui<B: Backend>(f: &mut Frame<B>, game: &Game) {
             if let (Some(x), Some(y)) = (mx, my) {
                 if let Some(tile) = game.maps[game.floor].tile_at(&Position { x, y }) {
                     let text = Text::raw(tile.to_string());
-                    f.render_widget(Paragraph::new(text), Rect::new(vx + h_padding, vy + v_padding, 1, 1));
+                    f.render_widget(
+                        Paragraph::new(text),
+                        Rect::new(vx + h_padding, vy + v_padding, 1, 1),
+                    );
                 }
             }
         }
@@ -215,16 +218,21 @@ impl Map {
     // for now working with a fixed map size and assuming that the view size
     // is the same. later those can be separated and scrolling can be introduced
     // to handle bigger maps and smaller terminal sizes.
-    const WIDTH: u16 = 80;
-    const HEIGHT: u16 = 20;
+    const MIN_WIDTH: u16 = 20;
+    const MAX_WIDTH: u16 = 100;
+    const MIN_HEIGHT: u16 = 10;
+    const MAX_HEIGHT: u16 = 50;
 
     // FIXME turn into default
     /// Create a map for the first floor, with randomly placed character and down ladder.
     pub fn new(floor: usize) -> Self {
-        // TODO make size random -within a limit-
+        let mut rng = rand::thread_rng();
+        let width = rng.gen_range(Self::MIN_WIDTH..=Self::MAX_WIDTH);
+        let height = rng.gen_range(Self::MIN_HEIGHT..=Self::MAX_HEIGHT);
+
         let mut map = Self {
-            width: Self::WIDTH,
-            height: Self::HEIGHT,
+            width,
+            height,
             tiles: HashMap::new(),
         };
 
