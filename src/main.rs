@@ -31,8 +31,8 @@ fn main() -> Result<(), io::Error> {
         if let Event::Key(key) = event::read()? {
             match key.code {
                 KeyCode::Char('q') => break,
-                KeyCode::Char('w') | KeyCode::Char('j') | KeyCode::Up => game.move_up(),
-                KeyCode::Char('s') | KeyCode::Char('k') | KeyCode::Down => game.move_down(),
+                KeyCode::Char('w') | KeyCode::Char('k') | KeyCode::Up => game.move_up(),
+                KeyCode::Char('s') | KeyCode::Char('j') | KeyCode::Down => game.move_down(),
                 KeyCode::Char('a') | KeyCode::Char('h') | KeyCode::Left => game.move_left(),
                 KeyCode::Char('d') | KeyCode::Char('l') | KeyCode::Right => game.move_right(),
                 _ => {}
