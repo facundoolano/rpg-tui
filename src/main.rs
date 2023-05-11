@@ -10,7 +10,7 @@ use tui::{
     backend::{Backend, CrosstermBackend},
     layout::{Alignment, Rect},
     text::Text,
-    widgets::{Block, Borders, Paragraph, Wrap},
+    widgets::{Block, Borders, Paragraph},
     Frame, Terminal,
 };
 
@@ -55,22 +55,12 @@ fn main() -> Result<(), io::Error> {
 fn ui<B: Backend>(f: &mut Frame<B>, game: &Game) {
     let term_size = f.size();
 
-    // FIXME take from terminal
-    let view_width = Map::WIDTH + 2;
-    let view_height = Map::HEIGHT + 2;
+    let h_padding = 5;
+    let v_padding = 3;
+    let view_width = term_size.width - h_padding * 2;
+    let view_height = term_size.height - v_padding * 2;
+    let size = Rect::new(h_padding, v_padding, view_width, view_height);
 
-    if term_size.width < view_width || term_size.height < view_height {
-        let message = Paragraph::new(Text::raw(
-            "Terminal is too small, resize or press q to quit.",
-        ))
-        .wrap(Wrap { trim: false });
-        f.render_widget(message, term_size);
-        return;
-    }
-
-    let left_padding = (term_size.width - view_width) / 2;
-    let top_padding = (term_size.height - view_height) / 2;
-    let size = Rect::new(left_padding, top_padding, view_width, view_height);
     let block = Block::default()
         .title(format!("floor {}", game.floor))
         .title_alignment(Alignment::Center)
@@ -83,7 +73,8 @@ fn ui<B: Backend>(f: &mut Frame<B>, game: &Game) {
         f.render_widget(
             Paragraph::new(text),
             // need to +1 because map 0 shouldn't match view 0
-            Rect::new(pos.x + left_padding + 1, pos.y + top_padding + 1, 1, 1),
+            // FIXME this needs to be updated to separate world/view coords
+            Rect::new(pos.x + h_padding + 1, pos.y + v_padding + 1, 1, 1),
         );
     }
 }
@@ -215,6 +206,7 @@ impl Map {
     // FIXME turn into default
     /// Create a map for the first floor, with randomly placed character and down ladder.
     pub fn new(floor: usize) -> Self {
+        // TODO make size random -within a limit-
         let mut map = Self {
             width: Self::WIDTH,
             height: Self::HEIGHT,
