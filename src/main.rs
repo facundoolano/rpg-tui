@@ -129,28 +129,15 @@ impl Game {
             x: self.character_position.x,
             y: self.character_position.y - 1,
         };
-        let is_wall = self.maps[self.floor].tile_at(&dest_position) == Some(Tile::Wall);
-
-        if self.character_position.y > 0 && !is_wall {
-            self.character_position = dest_position;
-        }
-        self.update_floor();
+        self.move_to(dest_position);
     }
 
-    // TODO this could be collapsed into a single method
     pub fn move_down(&mut self) {
         let dest_position = Position {
             x: self.character_position.x,
             y: self.character_position.y + 1,
         };
-        let is_wall = self.maps[self.floor].tile_at(&dest_position) == Some(Tile::Wall);
-
-        // assuming character is always inside a room, it can move as long as its not walking into a wall
-        // this will change if there are other non walkable entities or tiles in the map
-        if !is_wall {
-            self.character_position = dest_position;
-        }
-        self.update_floor();
+        self.move_to(dest_position);
     }
 
     pub fn move_left(&mut self) {
@@ -158,12 +145,7 @@ impl Game {
             x: self.character_position.x - 1,
             y: self.character_position.y,
         };
-        let is_wall = self.maps[self.floor].tile_at(&dest_position) == Some(Tile::Wall);
-
-        if self.character_position.x > 0 && !is_wall {
-            self.character_position = dest_position;
-        }
-        self.update_floor();
+        self.move_to(dest_position);
     }
 
     pub fn move_right(&mut self) {
@@ -171,16 +153,24 @@ impl Game {
             x: self.character_position.x + 1,
             y: self.character_position.y,
         };
-        let is_wall = self.maps[self.floor].tile_at(&dest_position) == Some(Tile::Wall);
-
-        if self.character_position.x < self.maps[self.floor].width - 1 && !is_wall {
-            self.character_position = dest_position;
-        }
-        self.update_floor();
+        self.move_to(dest_position);
     }
 
-    /// TODO
-    fn update_floor(&mut self) {
+    /// Update the character position to the given destination, when it's a valid movement
+    /// (e.g. if there isn't a wall there). If the destination is an up or down ladder,
+    /// move the character to the corresponding floor.
+    fn move_to(&mut self, dest_position: Position) {
+        let is_wall = self.maps[self.floor].tile_at(&dest_position) == Some(Tile::Wall);
+
+        // assuming character is always inside a room, it can move as long as its not walking into a wall
+        // this will change if there are other non walkable entities or tiles in the map
+        if self.character_position.y > 0 && !is_wall {
+            self.character_position = dest_position;
+        }
+
+        // when, after applying a movement, the character steps into a ladder
+        // it needs to be moved over to the matching ladder on the next or previous floor.
+        // New floors are added when going down to an unvisited floor
         match self.maps[self.floor].tile_at(&self.character_position) {
             Some(Tile::LadderUp) => {
                 self.floor -= 1;
