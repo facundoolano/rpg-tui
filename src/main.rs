@@ -68,15 +68,38 @@ fn ui<B: Backend>(f: &mut Frame<B>, game: &Game) {
 
     f.render_widget(block, size);
 
-    for (pos, tile) in game.tiles() {
-        let text = Text::raw(tile.to_string());
-        f.render_widget(
-            Paragraph::new(text),
-            // need to +1 because map 0 shouldn't match view 0
-            // FIXME this needs to be updated to separate world/view coords
-            Rect::new(pos.x + h_padding + 1, pos.y + v_padding + 1, 1, 1),
-        );
+    let char_pos = &game.character_position;
+
+    // TODO improve variable naming and add some explanatory comments
+    // scrolls the map keeping player in the center. maybe, if it's not too much complexity
+    // we could enable this behavior _only_ when the map is bigger than the screen, and
+    // move the character on a fixed map otherwise
+
+    for vx in 1..view_width - 1 {
+        for vy in 1..view_height - 1 {
+            let mx = (char_pos.x + vx).checked_sub(view_width / 2);
+            let my = (char_pos.y + vy).checked_sub(view_height / 2);
+
+            if let (Some(x), Some(y)) = (mx, my) {
+                if let Some(tile) = game.maps[game.floor].tile_at(&Position { x, y }) {
+                    let text = Text::raw(tile.to_string());
+                    f.render_widget(Paragraph::new(text), Rect::new(vx + h_padding, vy + v_padding, 1, 1));
+                }
+            }
+        }
     }
+
+    // render the character at the center
+    let text = Text::raw(Tile::Character.to_string());
+    f.render_widget(
+        Paragraph::new(text),
+        Rect::new(
+            view_width / 2 + h_padding,
+            view_height / 2 + v_padding,
+            1,
+            1,
+        ),
+    );
 }
 
 struct Game {
@@ -96,14 +119,6 @@ impl Game {
             character_position,
             maps: vec![first_map],
         }
-    }
-
-    /// TODO
-    pub fn tiles(&self) -> Vec<(Position, Tile)> {
-        // FIXME this is a kind of weird method
-        let mut tiles: Vec<_> = self.maps[self.floor].tiles.clone().into_iter().collect();
-        tiles.push((self.character_position.clone(), Tile::Character));
-        tiles
     }
 
     pub fn move_up(&mut self) {
