@@ -81,7 +81,7 @@ fn ui<B: Backend>(f: &mut Frame<B>, game: &Game) {
             let my = (char_pos.y + vy).checked_sub(view_height / 2);
 
             if let (Some(x), Some(y)) = (mx, my) {
-                if let Some(tile) = game.maps[game.floor].tile_at(&Position { x, y }) {
+                if let Some(tile) = game.map().tile_at(&Position { x, y }) {
                     let text = Text::raw(tile.to_string());
                     f.render_widget(
                         Paragraph::new(text),
@@ -108,13 +108,13 @@ fn ui<B: Backend>(f: &mut Frame<B>, game: &Game) {
 struct Game {
     pub floor: usize,
     // this may eventually need to distinguish between tilemap and itemmap, maybe moving char position back to the map
-    pub maps: Vec<Map>,
+    maps: Vec<Map>,
     pub character_position: Position,
 }
 
 impl Game {
     /// TODO
-    fn new() -> Self {
+    pub fn new() -> Self {
         let first_map = Map::new(0);
         let character_position = first_map.random_position();
         Self {
@@ -122,6 +122,10 @@ impl Game {
             character_position,
             maps: vec![first_map],
         }
+    }
+
+    pub fn map(&self) -> &Map {
+        &self.maps[self.floor]
     }
 
     pub fn move_up(&mut self) {
@@ -160,7 +164,7 @@ impl Game {
     /// (e.g. if there isn't a wall there). If the destination is an up or down ladder,
     /// move the character to the corresponding floor.
     fn move_to(&mut self, dest_position: Position) {
-        let is_wall = self.maps[self.floor].tile_at(&dest_position) == Some(Tile::Wall);
+        let is_wall = self.map().tile_at(&dest_position) == Some(Tile::Wall);
 
         // assuming character is always inside a room, it can move as long as its not walking into a wall
         // this will change if there are other non walkable entities or tiles in the map
@@ -171,12 +175,13 @@ impl Game {
         // when, after applying a movement, the character steps into a ladder
         // it needs to be moved over to the matching ladder on the next or previous floor.
         // New floors are added when going down to an unvisited floor
-        match self.maps[self.floor].tile_at(&self.character_position) {
+        match self.map().tile_at(&self.character_position) {
             Some(Tile::LadderUp) => {
                 self.floor -= 1;
 
                 // start at the ladder
-                self.character_position = self.maps[self.floor]
+                self.character_position = self
+                    .map()
                     .find_tile(Tile::LadderDown)
                     .expect("all floors have a ladder down");
             }
@@ -189,7 +194,8 @@ impl Game {
                 }
 
                 // start at the ladder
-                self.character_position = self.maps[self.floor]
+                self.character_position = self
+                    .map()
                     .find_tile(Tile::LadderUp)
                     .expect("all non zero floors have a ladder up");
             }
