@@ -55,6 +55,7 @@ fn main() -> Result<(), io::Error> {
 fn ui<B: Backend>(f: &mut Frame<B>, game: &Game) {
     let term_size = f.size();
 
+    // can rust-tui handle some of the padding and relative coords stuff?
     let h_padding = 5;
     let v_padding = 3;
     let view_width = term_size.width - h_padding * 2;
@@ -70,12 +71,13 @@ fn ui<B: Backend>(f: &mut Frame<B>, game: &Game) {
 
     let char_pos = &game.character_position;
 
-    // TODO improve variable naming and add some explanatory comments
-    // can the checks be reduced more?
-    // can rust-tui handle some of the padding, relateive coords stuff?
-
-    // TODO explain
+    // When a dimension (horizontal or vertical) fits entirely in the terminal view,
+    // it will be drawn at a fixed position (the character will move in that direction but not the map).
+    // When it doesn't fit, the character will be fixed at the center of the view for that dimension,
+    // and the map will scroll when the character moves.
     let map_fits_width = game.map().width < view_width;
+    let map_fits_height = game.map().height < view_height;
+
     let (start_vx, end_vx) = if map_fits_width {
         let start_vx = (view_width - game.map().width) / 2;
         (start_vx, start_vx + game.map().width)
@@ -83,7 +85,6 @@ fn ui<B: Backend>(f: &mut Frame<B>, game: &Game) {
         (0, view_width - 2)
     };
 
-    let map_fits_height = game.map().height < view_height;
     let (start_vy, end_vy) = if map_fits_height {
         let start_vy = (view_height - game.map().height) / 2;
         (start_vy, start_vy + game.map().height)
@@ -91,8 +92,10 @@ fn ui<B: Backend>(f: &mut Frame<B>, game: &Game) {
         (0, view_height - 2)
     };
 
+    // loop through all visible terminal positions
     for vx in start_vx..end_vx {
         for vy in start_vy..end_vy {
+            // convert the view coordinates to map coordinates
             let mx = if map_fits_width {
                 Some(vx - start_vx)
             } else {
@@ -105,21 +108,20 @@ fn ui<B: Backend>(f: &mut Frame<B>, game: &Game) {
                 (char_pos.y + vy).checked_sub(view_height / 2)
             };
 
-            if let (Some(x), Some(y)) = (mx, my) {
-                if (x, y) == (char_pos.x, char_pos.y) {
-                    // TODO this shouldn't be a special case here, but overridden later
-                    let text = Text::raw(Tile::Character.to_string());
-                    f.render_widget(
-                        Paragraph::new(text),
-                        Rect::new(vx + h_padding + 1, vy + v_padding + 1, 1, 1),
-                    );
-                } else if let Some(tile) = game.map().tile_at(&Position { x, y }) {
-                    let text = Text::raw(tile.to_string());
-                    f.render_widget(
-                        Paragraph::new(text),
-                        Rect::new(vx + h_padding + 1, vy + v_padding + 1, 1, 1),
-                    );
-                }
+            // if the map position exists and has a tile in it, get it
+            let tile = match (mx, my) {
+                (Some(x), Some(y)) if (x, y) == (char_pos.x, char_pos.y) => Some(Tile::Character),
+                (Some(x), Some(y)) => game.map().tile_at(&Position { x, y }),
+                _ => None,
+            };
+
+            // put the tile ascii representation in the screen
+            if let Some(tile) = tile {
+                let text = Text::raw(tile.to_string());
+                f.render_widget(
+                    Paragraph::new(text),
+                    Rect::new(vx + h_padding + 1, vy + v_padding + 1, 1, 1),
+                );
             }
         }
     }
