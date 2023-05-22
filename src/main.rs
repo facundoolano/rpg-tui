@@ -77,21 +77,27 @@ fn ui<B: Backend>(f: &mut Frame<B>, game: &Game) {
     let map_fits_width = game.map().width < view_width - 1;
     let map_fits_height = game.map().height < view_height - 1;
 
+    // These offsets are used when converting terminal rect coordinates to the map coordinates.
+    // When the dimension fits the view, it adds padding so the map is centered in the screen,
+    // when when it doesn't, it moves the map to fix the character in the center of the screen.
+    // Full-disclosure: I reasoned about both cases separately but found that the code was the same safe this offset
+    let h_offset = if map_fits_width {
+        game.map().width / 2
+    } else {
+        char_pos.x
+    };
+    let v_offset = if map_fits_height {
+        game.map().height / 2
+    } else {
+        char_pos.y
+    };
+
     // loop through all visible terminal positions
     for vx in 0..view_width - 2 {
         for vy in 0..view_height - 2 {
             // convert the view coordinates to map coordinates
-            let mx = if map_fits_width {
-                vx.checked_sub((view_width - game.map().width) / 2)
-            } else {
-                (char_pos.x + vx).checked_sub(view_width / 2)
-            };
-
-            let my = if map_fits_height {
-                vy.checked_sub((view_height - game.map().height) / 2)
-            } else {
-                (char_pos.y + vy).checked_sub(view_height / 2)
-            };
+            let mx = (h_offset + vx).checked_sub(view_width / 2);
+            let my = (v_offset + vy).checked_sub(view_height / 2);
 
             // if the map position exists and has a tile in it, get it
             let tile = match (mx, my) {
