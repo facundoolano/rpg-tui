@@ -55,7 +55,6 @@ fn main() -> Result<(), io::Error> {
 fn ui<B: Backend>(f: &mut Frame<B>, game: &Game) {
     let term_size = f.size();
 
-    // can rust-tui handle some of the padding and relative coords stuff?
     let h_padding = 5;
     let v_padding = 3;
     let view_width = term_size.width - h_padding * 2;
@@ -75,35 +74,21 @@ fn ui<B: Backend>(f: &mut Frame<B>, game: &Game) {
     // it will be drawn at a fixed position (the character will move in that direction but not the map).
     // When it doesn't fit, the character will be fixed at the center of the view for that dimension,
     // and the map will scroll when the character moves.
-    let map_fits_width = game.map().width < view_width;
-    let map_fits_height = game.map().height < view_height;
-
-    let (start_vx, end_vx) = if map_fits_width {
-        let start_vx = (view_width - game.map().width) / 2;
-        (start_vx, start_vx + game.map().width)
-    } else {
-        (0, view_width - 2)
-    };
-
-    let (start_vy, end_vy) = if map_fits_height {
-        let start_vy = (view_height - game.map().height) / 2;
-        (start_vy, start_vy + game.map().height)
-    } else {
-        (0, view_height - 2)
-    };
+    let map_fits_width = game.map().width < view_width - 1;
+    let map_fits_height = game.map().height < view_height - 1;
 
     // loop through all visible terminal positions
-    for vx in start_vx..end_vx {
-        for vy in start_vy..end_vy {
+    for vx in 0..view_width - 2 {
+        for vy in 0..view_height - 2 {
             // convert the view coordinates to map coordinates
             let mx = if map_fits_width {
-                Some(vx - start_vx)
+                vx.checked_sub((view_width - game.map().width) / 2)
             } else {
                 (char_pos.x + vx).checked_sub(view_width / 2)
             };
 
             let my = if map_fits_height {
-                Some(vy - start_vy)
+                vy.checked_sub((view_height - game.map().height) / 2)
             } else {
                 (char_pos.y + vy).checked_sub(view_height / 2)
             };
