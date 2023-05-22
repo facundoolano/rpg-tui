@@ -8,7 +8,7 @@ use rand::Rng;
 use std::{collections::HashMap, io};
 use tui::{
     backend::{Backend, CrosstermBackend},
-    layout::{Alignment, Rect},
+    layout::{Alignment, Constraint, Direction, Layout, Rect},
     text::Text,
     widgets::{Block, Borders, Paragraph},
     Frame, Terminal,
@@ -23,7 +23,6 @@ fn main() -> Result<(), io::Error> {
     let mut terminal = Terminal::new(backend)?;
 
     let mut game = Game::new();
-
     loop {
         terminal.draw(|f| ui(f, &game))?;
 
@@ -53,20 +52,37 @@ fn main() -> Result<(), io::Error> {
 }
 
 fn ui<B: Backend>(f: &mut Frame<B>, game: &Game) {
-    let term_size = f.size();
+    let [stat, log, map] = layout(f);
 
-    let h_padding = 5;
-    let v_padding = 3;
-    let view_width = term_size.width - h_padding * 2;
-    let view_height = term_size.height - v_padding * 2;
-    let size = Rect::new(h_padding, v_padding, view_width, view_height);
+    let block = Block::default().title("stat").borders(Borders::ALL);
+    f.render_widget(block, stat);
+    let block = Block::default().title("log").borders(Borders::ALL);
+    f.render_widget(block, log);
 
+    render_map(f, map, game);
+}
+
+fn layout<B: Backend>(f: &mut Frame<B>) -> [Rect; 3] {
+    let horizontal_chunks = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([Constraint::Length(25), Constraint::Min(1)].as_ref())
+        .split(f.size());
+
+    let vertical_chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Percentage(50), Constraint::Percentage(50)].as_ref())
+        .split(horizontal_chunks[0]);
+
+    [vertical_chunks[0], vertical_chunks[1], horizontal_chunks[1]]
+}
+
+fn render_map<B: Backend>(f: &mut Frame<B>, area: Rect, game: &Game) {
     let block = Block::default()
-        .title(format!("floor {}", game.floor))
+        .title(format!("@floor{}", game.floor))
         .title_alignment(Alignment::Center)
         .borders(Borders::ALL);
 
-    f.render_widget(block, size);
+    f.render_widget(block, area);
 
     let char_pos = &game.character_position;
 
@@ -74,8 +90,8 @@ fn ui<B: Backend>(f: &mut Frame<B>, game: &Game) {
     // it will be drawn at a fixed position (the character will move in that direction but not the map).
     // When it doesn't fit, the character will be fixed at the center of the view for that dimension,
     // and the map will scroll when the character moves.
-    let map_fits_width = game.map().width < view_width - 1;
-    let map_fits_height = game.map().height < view_height - 1;
+    let map_fits_width = game.map().width < area.width - 2;
+    let map_fits_height = game.map().height < area.height - 2;
 
     // These offsets are used when converting terminal rect coordinates to the map coordinates.
     // When the dimension fits the view, it adds padding so the map is centered in the screen,
@@ -93,11 +109,11 @@ fn ui<B: Backend>(f: &mut Frame<B>, game: &Game) {
     };
 
     // loop through all visible terminal positions
-    for vx in 0..view_width - 2 {
-        for vy in 0..view_height - 2 {
+    for vx in 1..area.width - 1 {
+        for vy in 1..area.height - 1 {
             // convert the view coordinates to map coordinates
-            let mx = (h_offset + vx).checked_sub(view_width / 2);
-            let my = (v_offset + vy).checked_sub(view_height / 2);
+            let mx = (h_offset + vx - 1).checked_sub(area.width / 2);
+            let my = (v_offset + vy - 1).checked_sub(area.height / 2);
 
             // if the map position exists and has a tile in it, get it
             let tile = match (mx, my) {
@@ -111,7 +127,7 @@ fn ui<B: Backend>(f: &mut Frame<B>, game: &Game) {
                 let text = Text::raw(tile.to_string());
                 f.render_widget(
                     Paragraph::new(text),
-                    Rect::new(vx + h_padding + 1, vy + v_padding + 1, 1, 1),
+                    Rect::new(vx + area.x, vy + area.y, 1, 1),
                 );
             }
         }
