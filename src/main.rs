@@ -71,38 +71,52 @@ fn ui<B: Backend>(f: &mut Frame<B>, game: &Game) {
     let char_pos = &game.character_position;
 
     // TODO improve variable naming and add some explanatory comments
-    // scrolls the map keeping player in the center. maybe, if it's not too much complexity
-    // we could enable this behavior _only_ when the map is bigger than the screen, and
-    // move the character on a fixed map otherwise
+    // can the checks be reduced more?
+    // can rust-tui handle some of the padding, relateive coords stuff?
 
-    for vx in 1..view_width - 1 {
-        for vy in 1..view_height - 1 {
-            let mx = (char_pos.x + vx).checked_sub(view_width / 2);
-            let my = (char_pos.y + vy).checked_sub(view_height / 2);
+    // TODO explain
+    let map_fits_width = game.map().width < view_width;
+    let (start_vx, end_vx) = if map_fits_width {
+        let start_vx = h_padding + 1 + (view_width - game.map().width) / 2;
+        (start_vx, start_vx + game.map().width)
+    } else {
+        (h_padding + 1, h_padding + view_width - 1)
+    };
+
+    let map_fits_height = game.map().height < view_height;
+    let (start_vy, end_vy) = if map_fits_height {
+        let start_vy = v_padding + 1 + (view_height - game.map().height) / 2;
+        (start_vy, start_vy + game.map().height)
+    } else {
+        (v_padding + 1, v_padding + view_height - 1)
+    };
+
+    for vx in start_vx..end_vx {
+        for vy in start_vy..end_vy {
+            let mx = if map_fits_width {
+                Some(vx - start_vx)
+            } else {
+                (char_pos.x + vx).checked_sub(view_width / 2)
+            };
+
+            let my = if map_fits_height {
+                Some(vy - start_vy)
+            } else {
+                (char_pos.y + vy).checked_sub(view_height / 2)
+            };
 
             if let (Some(x), Some(y)) = (mx, my) {
-                if let Some(tile) = game.map().tile_at(&Position { x, y }) {
+                if (x, y) == (char_pos.x, char_pos.y) {
+                    // TODO this shouldn't be a special case here, but overridden later
+                    let text = Text::raw(Tile::Character.to_string());
+                    f.render_widget(Paragraph::new(text), Rect::new(vx, vy, 1, 1));
+                } else if let Some(tile) = game.map().tile_at(&Position { x, y }) {
                     let text = Text::raw(tile.to_string());
-                    f.render_widget(
-                        Paragraph::new(text),
-                        Rect::new(vx + h_padding, vy + v_padding, 1, 1),
-                    );
+                    f.render_widget(Paragraph::new(text), Rect::new(vx, vy, 1, 1));
                 }
             }
         }
     }
-
-    // render the character at the center
-    let text = Text::raw(Tile::Character.to_string());
-    f.render_widget(
-        Paragraph::new(text),
-        Rect::new(
-            view_width / 2 + h_padding,
-            view_height / 2 + v_padding,
-            1,
-            1,
-        ),
-    );
 }
 
 struct Game {
