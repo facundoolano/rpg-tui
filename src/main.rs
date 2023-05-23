@@ -62,7 +62,17 @@ fn ui<B: Backend>(f: &mut Frame<B>, game: &Game) {
     let block = Block::default().title("log").borders(Borders::ALL);
     f.render_widget(block, log);
 
-    render_map(f, map, game);
+    let block = Block::default()
+        .title(format!("@floor{}", game.floor))
+        .title_alignment(Alignment::Center)
+        .borders(Borders::ALL);
+    f.render_widget(block, map);
+
+    let map_strings = map_as_text(map, game);
+    f.render_widget(
+        Paragraph::new(map_strings),
+        Rect::new(map.x + 1, map.y + 1, map.width - 2, map.height - 2),
+    );
 }
 
 fn layout<B: Backend>(f: &mut Frame<B>) -> [Rect; 3] {
@@ -79,7 +89,7 @@ fn layout<B: Backend>(f: &mut Frame<B>) -> [Rect; 3] {
     [vertical_chunks[0], vertical_chunks[1], horizontal_chunks[1]]
 }
 
-fn render_map<B: Backend>(f: &mut Frame<B>, area: Rect, game: &Game) {
+fn map_as_text(area: Rect, game: &Game) -> Vec<Spans<'static>> {
     let char_pos = &game.character_position;
 
     // When a dimension (horizontal or vertical) fits entirely in the terminal view,
@@ -108,41 +118,29 @@ fn render_map<B: Backend>(f: &mut Frame<B>, area: Rect, game: &Game) {
     let mut rows = Vec::new();
     for vy in 1..area.height - 1 {
         let mut row = String::new();
+
         for vx in 1..area.width - 1 {
             // convert the view coordinates to map coordinates
             let mx = (h_offset + vx - 1).checked_sub(area.width / 2);
             let my = (v_offset + vy - 1).checked_sub(area.height / 2);
 
-            // TODO maybe extract an if let and simplify the match
-            match (mx, my) {
-                (Some(x), Some(y)) if (x, y) == (char_pos.x, char_pos.y) => {
-                    row.push_str(Tile::Character.to_string());
-                }
-                (Some(x), Some(y)) => {
-                    let tile = game.map().tile_at(&Position { x, y });
-                    let string = tile.map(|t| t.to_string()).unwrap_or(" ");
-                    row.push_str(string);
-                }
-                _ => {
-                    row.push(' ');
-                }
+            let tile = match (mx, my) {
+                (Some(x), Some(y)) if (x, y) == (char_pos.x, char_pos.y) => Some(Tile::Character),
+                (Some(x), Some(y)) => game.map().tile_at(&Position { x, y }),
+                _ => None,
             };
+
+            if let Some(tile) = tile {
+                row.push_str(tile.to_string());
+            } else {
+                row.push(' ');
+            }
         }
+
         rows.push(Spans::from(row));
     }
 
-    // TODO return paragrahp so all rendering is done above
-    let block = Block::default()
-        .title(format!("@floor{}", game.floor))
-        .title_alignment(Alignment::Center)
-        .borders(Borders::ALL);
-
-    f.render_widget(block, area);
-
-    f.render_widget(
-        Paragraph::new(rows),
-        Rect::new(area.x + 1, area.y + 1, area.width - 2, area.height - 2),
-    );
+    rows
 }
 
 struct Game {
