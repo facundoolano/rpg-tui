@@ -9,7 +9,7 @@ use std::{collections::HashMap, io};
 use tui::{
     backend::{Backend, CrosstermBackend},
     layout::{Alignment, Constraint, Direction, Layout, Rect},
-    text::Text,
+    text::Spans,
     widgets::{Block, Borders, Paragraph},
     Frame, Terminal,
 };
@@ -29,11 +29,14 @@ fn main() -> Result<(), io::Error> {
         // when q is pressed, finish the program
         if let Event::Key(key) = event::read()? {
             match key.code {
+                // Quit game when pressing q
                 KeyCode::Char('q') => break,
-                KeyCode::Char('w') | KeyCode::Char('k') | KeyCode::Up => game.move_up(),
-                KeyCode::Char('s') | KeyCode::Char('j') | KeyCode::Down => game.move_down(),
-                KeyCode::Char('a') | KeyCode::Char('h') | KeyCode::Left => game.move_left(),
-                KeyCode::Char('d') | KeyCode::Char('l') | KeyCode::Right => game.move_right(),
+
+                // handle both arrows and vi keybindings for now
+                KeyCode::Char('k') | KeyCode::Up => game.move_up(),
+                KeyCode::Char('j') | KeyCode::Down => game.move_down(),
+                KeyCode::Char('h') | KeyCode::Left => game.move_left(),
+                KeyCode::Char('l') | KeyCode::Right => game.move_right(),
                 _ => {}
             }
         }
@@ -77,13 +80,6 @@ fn layout<B: Backend>(f: &mut Frame<B>) -> [Rect; 3] {
 }
 
 fn render_map<B: Backend>(f: &mut Frame<B>, area: Rect, game: &Game) {
-    let block = Block::default()
-        .title(format!("@floor{}", game.floor))
-        .title_alignment(Alignment::Center)
-        .borders(Borders::ALL);
-
-    f.render_widget(block, area);
-
     let char_pos = &game.character_position;
 
     // When a dimension (horizontal or vertical) fits entirely in the terminal view,
@@ -109,29 +105,44 @@ fn render_map<B: Backend>(f: &mut Frame<B>, area: Rect, game: &Game) {
     };
 
     // loop through all visible terminal positions
-    for vx in 1..area.width - 1 {
-        for vy in 1..area.height - 1 {
+    let mut rows = Vec::new();
+    for vy in 1..area.height - 1 {
+        let mut row = String::new();
+        for vx in 1..area.width - 1 {
             // convert the view coordinates to map coordinates
             let mx = (h_offset + vx - 1).checked_sub(area.width / 2);
             let my = (v_offset + vy - 1).checked_sub(area.height / 2);
 
-            // if the map position exists and has a tile in it, get it
-            let tile = match (mx, my) {
-                (Some(x), Some(y)) if (x, y) == (char_pos.x, char_pos.y) => Some(Tile::Character),
-                (Some(x), Some(y)) => game.map().tile_at(&Position { x, y }),
-                _ => None,
+            // TODO maybe extract an if let and simplify the match
+            match (mx, my) {
+                (Some(x), Some(y)) if (x, y) == (char_pos.x, char_pos.y) => {
+                    row.push_str(Tile::Character.to_string());
+                }
+                (Some(x), Some(y)) => {
+                    let tile = game.map().tile_at(&Position { x, y });
+                    let string = tile.map(|t| t.to_string()).unwrap_or(" ");
+                    row.push_str(string);
+                }
+                _ => {
+                    row.push(' ');
+                }
             };
-
-            // put the tile ascii representation in the screen
-            if let Some(tile) = tile {
-                let text = Text::raw(tile.to_string());
-                f.render_widget(
-                    Paragraph::new(text),
-                    Rect::new(vx + area.x, vy + area.y, 1, 1),
-                );
-            }
         }
+        rows.push(Spans::from(row));
     }
+
+    // TODO return paragrahp so all rendering is done above
+    let block = Block::default()
+        .title(format!("@floor{}", game.floor))
+        .title_alignment(Alignment::Center)
+        .borders(Borders::ALL);
+
+    f.render_widget(block, area);
+
+    f.render_widget(
+        Paragraph::new(rows),
+        Rect::new(area.x + 1, area.y + 1, area.width - 2, area.height - 2),
+    );
 }
 
 struct Game {
