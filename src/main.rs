@@ -63,7 +63,10 @@ fn ui<B: Backend>(f: &mut Frame<B>, game: &Game) {
     f.render_widget(block, log);
 
     let block = Block::default()
-        .title(format!("@floor{}", game.floor))
+        .title(format!(
+            "warrior[10][xx--]@({}:{}:{})",
+            game.floor, game.character_position.x, game.character_position.y
+        ))
         .title_alignment(Alignment::Center)
         .borders(Borders::ALL);
     f.render_widget(block, map);
