@@ -10,8 +10,8 @@ use tui::{
     backend::{Backend, CrosstermBackend},
     layout::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
-    text::{Span, Spans, Text},
-    widgets::{Block, Borders, Paragraph, Tabs},
+    text::{Span, Spans},
+    widgets::{Block, Borders, Paragraph},
     Frame, Terminal,
 };
 
@@ -309,9 +309,12 @@ impl Map {
         // along the borders
         for x in 0..map.width {
             for y in 0..map.height {
-                if y == 0 || y == map.height - 1 || x == 0 || x == map.width - 1 {
-                    map.tiles.insert(Position { x, y }, Tile::Wall);
-                }
+                let tile = if x == 0 || x == map.width - 1 || y == 0 || y == map.height - 1 {
+                    Tile::Wall
+                } else {
+                    Tile::Ground
+                };
+                map.tiles.insert(Position { x, y }, tile);
             }
         }
 
@@ -344,7 +347,9 @@ impl Map {
                 x: rng.gen_range(0..self.width),
                 y: rng.gen_range(0..self.height),
             };
-            if !self.tiles.contains_key(&pos) {
+            let tile = self.tiles.get(&pos);
+            // FIXME floor is special case, may need something more generic for this
+            if tile.is_none() || *tile.unwrap() == Tile::Ground {
                 return pos;
             }
         }
@@ -357,6 +362,7 @@ enum Tile {
     LadderUp,
     LadderDown,
     Wall,
+    Ground,
 }
 
 impl Tile {
@@ -367,6 +373,7 @@ impl Tile {
             Tile::LadderUp => "↑",
             Tile::LadderDown => "↓",
             Tile::Wall => "#",
+            Tile::Ground => ".",
         }
     }
 }
