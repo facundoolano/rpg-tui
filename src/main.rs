@@ -9,8 +9,9 @@ use std::{collections::HashMap, io};
 use tui::{
     backend::{Backend, CrosstermBackend},
     layout::{Alignment, Constraint, Direction, Layout, Rect},
-    text::Spans,
-    widgets::{Block, Borders, Paragraph},
+    style::{Color, Modifier, Style},
+    text::{Span, Spans, Text},
+    widgets::{Block, Borders, Paragraph, Tabs},
     Frame, Terminal,
 };
 
@@ -55,38 +56,69 @@ fn main() -> Result<(), io::Error> {
 }
 
 fn ui<B: Backend>(f: &mut Frame<B>, game: &Game) {
-    let [stat, log, map] = layout(f);
+    // TODO make this function more readable
+    let [panel, menu, map] = layout(f);
 
-    let block = Block::default().title("stat").borders(Borders::ALL);
-    f.render_widget(block, stat);
-    let block = Block::default().title("log").borders(Borders::ALL);
-    f.render_widget(block, log);
+    let underlined = Style::default().add_modifier(Modifier::UNDERLINED);
+    let separator = Span::raw(" | ");
+    // TODO make generic
+    let panel_titles = Spans::from(vec![
+        Span::styled(" log", Style::default().fg(Color::White)),
+        separator.clone(),
+        Span::styled("s", underlined),
+        Span::raw("tat"),
+        separator.clone(),
+        Span::styled("t", underlined),
+        Span::raw("odo"),
+        separator.clone(),
+        Span::raw("h"),
+        Span::styled("e", underlined),
+        Span::raw("lp "),
+    ]);
+    let block = Block::default()
+        .title(panel_titles)
+        .borders(Borders::ALL)
+        .title_alignment(Alignment::Center);
+    f.render_widget(block, panel);
 
     let block = Block::default()
         .title(format!(
-            "warrior[10][xx--]@({}:{}:{})",
+            " warrior[10][xx--]@{}.{}.{} ",
             game.floor, game.character_position.x, game.character_position.y
         ))
-        .title_alignment(Alignment::Center)
         .borders(Borders::ALL);
-    f.render_widget(block, map);
 
     let map_strings = map_as_text(map, game);
+    f.render_widget(Paragraph::new(map_strings).block(block), map);
+
+    let disabled = Style::default().fg(Color::DarkGray);
     f.render_widget(
-        Paragraph::new(map_strings),
-        Rect::new(map.x + 1, map.y + 1, map.width - 2, map.height - 2),
+        Paragraph::new(vec![Spans::from(vec![
+            Span::styled("u", underlined),
+            Span::raw("se "),
+            Span::styled("b", disabled.add_modifier(Modifier::UNDERLINED)),
+            Span::styled("uy ", disabled),
+            Span::styled("c", disabled.add_modifier(Modifier::UNDERLINED)),
+            Span::styled("lass ", disabled),
+            Span::styled("q", underlined),
+            Span::raw("uit "),
+            Span::styled("r", underlined),
+            Span::raw("eset"),
+        ])])
+        .alignment(Alignment::Center),
+        menu,
     );
 }
 
 fn layout<B: Backend>(f: &mut Frame<B>) -> [Rect; 3] {
     let horizontal_chunks = Layout::default()
         .direction(Direction::Horizontal)
-        .constraints([Constraint::Length(25), Constraint::Min(1)].as_ref())
+        .constraints([Constraint::Length(30), Constraint::Min(3)].as_ref())
         .split(f.size());
 
     let vertical_chunks = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([Constraint::Percentage(50), Constraint::Percentage(50)].as_ref())
+        .constraints([Constraint::Min(3), Constraint::Length(2)].as_ref())
         .split(horizontal_chunks[0]);
 
     [vertical_chunks[0], vertical_chunks[1], horizontal_chunks[1]]
