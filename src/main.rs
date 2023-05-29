@@ -20,9 +20,8 @@ fn main() -> Result<(), io::Error> {
     let mut game = Game::new();
 
     loop {
-        terminal.draw(|f| ui(f, &game))?;
+        terminal.draw(|f| render(&game, f))?;
 
-        // when q is pressed, finish the program
         if let Event::Key(key) = event::read()? {
             match key.code {
                 // Quit game when pressing q
@@ -45,13 +44,18 @@ fn main() -> Result<(), io::Error> {
     Ok(())
 }
 
-fn ui(f: &mut TerminalFrame, game: &Game) {
-    // TODO make this function more readable
-    let [panel, menu, map] = layout(f);
+fn render(game: &Game, frame: &mut TerminalFrame) {
+    let [info_panel, command_menu, map_panel] = layout(frame.size());
 
+    // show an info panel with available "views":
+    // event logs, character status, quest todos and game help (eg. keybindings)
+    // for now the panel is empty.
+
+    // TODO add helpers for more readable styles
+    // these could eventually be turned into custom rust-tui widgets
     let underlined = style::Style::default().add_modifier(style::Modifier::UNDERLINED);
     let separator = text::Span::raw(" | ");
-    // TODO make generic
+
     let panel_titles = text::Spans::from(vec![
         text::Span::styled(" log", style::Style::default().fg(style::Color::White)),
         separator.clone(),
@@ -69,20 +73,13 @@ fn ui(f: &mut TerminalFrame, game: &Game) {
         .title(panel_titles)
         .borders(widgets::Borders::ALL)
         .title_alignment(layout::Alignment::Center);
-    f.render_widget(block, panel);
+    frame.render_widget(block, info_panel);
 
-    let block = widgets::Block::default()
-        .title(format!(
-            " warrior[10][xx--]@{}.{}.{} ",
-            game.floor, game.character_position.x, game.character_position.y
-        ))
-        .borders(widgets::Borders::ALL);
-
-    let map_strings = map_as_text(map, game);
-    f.render_widget(widgets::Paragraph::new(map_strings).block(block), map);
-
+    // show a menu of additional commands, not associated with a view
+    // use an inventory item; buy items or change character class (only at floor zero);
+    // quit or reset the game
     let disabled = style::Style::default().fg(style::Color::DarkGray);
-    f.render_widget(
+    frame.render_widget(
         widgets::Paragraph::new(vec![text::Spans::from(vec![
             text::Span::styled("u", underlined),
             text::Span::raw("se "),
@@ -96,16 +93,33 @@ fn ui(f: &mut TerminalFrame, game: &Game) {
             text::Span::raw("eset"),
         ])])
         .alignment(layout::Alignment::Center),
-        menu,
+        command_menu,
     );
+
+    // Render the current map state as a string (a vec of tui-rs text Spans).
+    // The title of the map panel shows basic stats, mostly hardcoded for now
+    let map_strings = map_as_text(map_panel, game);
+    let block = widgets::Block::default()
+        .title(format!(
+            " warrior[10][xx--]@{}.{}.{} ",
+            game.floor, game.character_position.x, game.character_position.y
+        ))
+        .borders(widgets::Borders::ALL);
+    frame.render_widget(widgets::Paragraph::new(map_strings).block(block), map_panel);
 }
 
-fn layout(f: &mut TerminalFrame) -> [layout::Rect; 3] {
+/// Split the available frame size in three blocks:
+///   a panel to display information (e.g. battle logs)
+///   a menu of available actions (e.g. quit or reset game)
+///   a block to display the map
+fn layout(frame_size: layout::Rect) -> [layout::Rect; 3] {
+    // split into a fixed size column on the left, and the rest of the available screen for the map
     let horizontal_chunks = layout::Layout::default()
         .direction(layout::Direction::Horizontal)
         .constraints([layout::Constraint::Length(30), layout::Constraint::Min(3)].as_ref())
-        .split(f.size());
+        .split(frame_size);
 
+    // leave a line for commands at the bottom, and use the rest of the column for the display panel
     let vertical_chunks = layout::Layout::default()
         .direction(layout::Direction::Vertical)
         .constraints([layout::Constraint::Min(3), layout::Constraint::Length(2)].as_ref())
@@ -179,7 +193,7 @@ impl Game {
     /// TODO
     pub fn new() -> Self {
         let first_map = Map::new(0);
-        let character_position = first_map.random_position();
+        let character_position = first_map.random_unocuppied_position();
         Self {
             floor: 0,
             character_position,
@@ -282,7 +296,6 @@ impl Map {
     const MIN_HEIGHT: u16 = 10;
     const MAX_HEIGHT: u16 = 50;
 
-    // FIXME turn into default
     /// Create a map for the first floor, with randomly placed character and down ladder.
     pub fn new(floor: usize) -> Self {
         let mut rng = rand::thread_rng();
@@ -308,13 +321,16 @@ impl Map {
             }
         }
 
-        map.tiles.insert(map.random_position(), Tile::LadderDown);
+        map.tiles
+            .insert(map.random_unocuppied_position(), Tile::LadderDown);
         if floor > 0 {
-            map.tiles.insert(map.random_position(), Tile::LadderUp);
+            map.tiles
+                .insert(map.random_unocuppied_position(), Tile::LadderUp);
         }
         map
     }
 
+    /// Return the position of the first tile of the given type found in the map or None if not found.
     fn find_tile(&self, expected: Tile) -> Option<Position> {
         for (pos, current) in self.tiles.iter() {
             if *current == expected {
@@ -328,8 +344,9 @@ impl Map {
         self.tiles.get(position).cloned()
     }
 
-    /// Return a random and unused position within the map to place a new tile.
-    pub fn random_position(&self) -> Position {
+    /// Return a random position within the map that can be used to place an object.
+    /// For now, this means that there's no tile or a ground type tile in it.
+    pub fn random_unocuppied_position(&self) -> Position {
         let mut rng = rand::thread_rng();
 
         loop {
@@ -338,7 +355,8 @@ impl Map {
                 y: rng.gen_range(0..self.height),
             };
             let tile = self.tiles.get(&pos);
-            // FIXME floor is special case, may need something more generic for this
+
+            // FIXME floor is special case, will need a more official way to tell if the position is unoccupied
             if tile.is_none() || *tile.unwrap() == Tile::Ground {
                 return pos;
             }
@@ -348,22 +366,22 @@ impl Map {
 
 #[derive(Clone, PartialEq)]
 enum Tile {
+    Wall,
+    Ground,
     Character,
     LadderUp,
     LadderDown,
-    Wall,
-    Ground,
 }
 
 impl Tile {
     // FIXME probably use some standard trait for this
     fn to_string(&self) -> &'static str {
         match self {
+            Tile::Wall => "#",
+            Tile::Ground => ".",
             Tile::Character => "@",
             Tile::LadderUp => "↑",
             Tile::LadderDown => "↓",
-            Tile::Wall => "#",
-            Tile::Ground => ".",
         }
     }
 }
