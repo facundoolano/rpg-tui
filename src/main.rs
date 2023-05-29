@@ -1,29 +1,24 @@
-// FIXME qualify term imports
 use crossterm::{
-    event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode},
-    execute,
-    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
+    event::{self, Event, KeyCode},
+    terminal,
 };
 use rand::Rng;
 use std::{collections::HashMap, io};
-use tui::{
-    backend::{Backend, CrosstermBackend},
-    layout::{Alignment, Constraint, Direction, Layout, Rect},
-    style::{Color, Modifier, Style},
-    text::{Span, Spans},
-    widgets::{Block, Borders, Paragraph},
-    Frame, Terminal,
-};
+use tui::{layout, style, text, widgets};
+
+type TerminalBackend = tui::backend::CrosstermBackend<io::Stdout>;
+type TerminalFrame<'a> = tui::Frame<'a, TerminalBackend>;
 
 fn main() -> Result<(), io::Error> {
     // setup terminal
-    enable_raw_mode()?;
+    terminal::enable_raw_mode()?;
     let mut stdout = io::stdout();
-    execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
-    let backend = CrosstermBackend::new(stdout);
-    let mut terminal = Terminal::new(backend)?;
+    crossterm::execute!(stdout, terminal::EnterAlternateScreen)?;
+    let backend = TerminalBackend::new(stdout);
+    let mut terminal = tui::Terminal::new(backend)?;
 
     let mut game = Game::new();
+
     loop {
         terminal.draw(|f| ui(f, &game))?;
 
@@ -44,87 +39,82 @@ fn main() -> Result<(), io::Error> {
     }
 
     // restore terminal
-    disable_raw_mode()?;
-    execute!(
-        terminal.backend_mut(),
-        LeaveAlternateScreen,
-        DisableMouseCapture
-    )?;
-    terminal.show_cursor()?;
+    terminal::disable_raw_mode()?;
+    crossterm::execute!(terminal.backend_mut(), terminal::LeaveAlternateScreen)?;
 
     Ok(())
 }
 
-fn ui<B: Backend>(f: &mut Frame<B>, game: &Game) {
+fn ui(f: &mut TerminalFrame, game: &Game) {
     // TODO make this function more readable
     let [panel, menu, map] = layout(f);
 
-    let underlined = Style::default().add_modifier(Modifier::UNDERLINED);
-    let separator = Span::raw(" | ");
+    let underlined = style::Style::default().add_modifier(style::Modifier::UNDERLINED);
+    let separator = text::Span::raw(" | ");
     // TODO make generic
-    let panel_titles = Spans::from(vec![
-        Span::styled(" log", Style::default().fg(Color::White)),
+    let panel_titles = text::Spans::from(vec![
+        text::Span::styled(" log", style::Style::default().fg(style::Color::White)),
         separator.clone(),
-        Span::styled("s", underlined),
-        Span::raw("tat"),
+        text::Span::styled("s", underlined),
+        text::Span::raw("tat"),
         separator.clone(),
-        Span::styled("t", underlined),
-        Span::raw("odo"),
+        text::Span::styled("t", underlined),
+        text::Span::raw("odo"),
         separator.clone(),
-        Span::raw("h"),
-        Span::styled("e", underlined),
-        Span::raw("lp "),
+        text::Span::raw("h"),
+        text::Span::styled("e", underlined),
+        text::Span::raw("lp "),
     ]);
-    let block = Block::default()
+    let block = widgets::Block::default()
         .title(panel_titles)
-        .borders(Borders::ALL)
-        .title_alignment(Alignment::Center);
+        .borders(widgets::Borders::ALL)
+        .title_alignment(layout::Alignment::Center);
     f.render_widget(block, panel);
 
-    let block = Block::default()
+    let block = widgets::Block::default()
         .title(format!(
             " warrior[10][xx--]@{}.{}.{} ",
             game.floor, game.character_position.x, game.character_position.y
         ))
-        .borders(Borders::ALL);
+        .borders(widgets::Borders::ALL);
 
     let map_strings = map_as_text(map, game);
-    f.render_widget(Paragraph::new(map_strings).block(block), map);
+    f.render_widget(widgets::Paragraph::new(map_strings).block(block), map);
 
-    let disabled = Style::default().fg(Color::DarkGray);
+    let disabled = style::Style::default().fg(style::Color::DarkGray);
     f.render_widget(
-        Paragraph::new(vec![Spans::from(vec![
-            Span::styled("u", underlined),
-            Span::raw("se "),
-            Span::styled("b", disabled.add_modifier(Modifier::UNDERLINED)),
-            Span::styled("uy ", disabled),
-            Span::styled("c", disabled.add_modifier(Modifier::UNDERLINED)),
-            Span::styled("lass ", disabled),
-            Span::styled("q", underlined),
-            Span::raw("uit "),
-            Span::styled("r", underlined),
-            Span::raw("eset"),
+        widgets::Paragraph::new(vec![text::Spans::from(vec![
+            text::Span::styled("u", underlined),
+            text::Span::raw("se "),
+            text::Span::styled("b", disabled.add_modifier(style::Modifier::UNDERLINED)),
+            text::Span::styled("uy ", disabled),
+            text::Span::styled("c", disabled.add_modifier(style::Modifier::UNDERLINED)),
+            text::Span::styled("lass ", disabled),
+            text::Span::styled("q", underlined),
+            text::Span::raw("uit "),
+            text::Span::styled("r", underlined),
+            text::Span::raw("eset"),
         ])])
-        .alignment(Alignment::Center),
+        .alignment(layout::Alignment::Center),
         menu,
     );
 }
 
-fn layout<B: Backend>(f: &mut Frame<B>) -> [Rect; 3] {
-    let horizontal_chunks = Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints([Constraint::Length(30), Constraint::Min(3)].as_ref())
+fn layout(f: &mut TerminalFrame) -> [layout::Rect; 3] {
+    let horizontal_chunks = layout::Layout::default()
+        .direction(layout::Direction::Horizontal)
+        .constraints([layout::Constraint::Length(30), layout::Constraint::Min(3)].as_ref())
         .split(f.size());
 
-    let vertical_chunks = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([Constraint::Min(3), Constraint::Length(2)].as_ref())
+    let vertical_chunks = layout::Layout::default()
+        .direction(layout::Direction::Vertical)
+        .constraints([layout::Constraint::Min(3), layout::Constraint::Length(2)].as_ref())
         .split(horizontal_chunks[0]);
 
     [vertical_chunks[0], vertical_chunks[1], horizontal_chunks[1]]
 }
 
-fn map_as_text(area: Rect, game: &Game) -> Vec<Spans<'static>> {
+fn map_as_text(area: layout::Rect, game: &Game) -> Vec<text::Spans<'static>> {
     let char_pos = &game.character_position;
 
     // When a dimension (horizontal or vertical) fits entirely in the terminal view,
@@ -172,7 +162,7 @@ fn map_as_text(area: Rect, game: &Game) -> Vec<Spans<'static>> {
             }
         }
 
-        rows.push(Spans::from(row));
+        rows.push(text::Spans::from(row));
     }
 
     rows
