@@ -98,14 +98,17 @@ fn render(game: &Game, frame: &mut TerminalFrame) {
 
     // Render the current map state as a string (a vec of tui-rs text Spans).
     // The title of the map panel shows basic stats, mostly hardcoded for now
-    let map_strings = map_as_text(map_panel, game);
-    let block = widgets::Block::default()
+    let map_block = widgets::Block::default()
         .title(format!(
             " warrior[10][xx--]@{}.{}.{} ",
             game.floor, game.character_position.x, game.character_position.y
         ))
         .borders(widgets::Borders::ALL);
-    frame.render_widget(widgets::Paragraph::new(map_strings).block(block), map_panel);
+    let map_strings = map_as_text(map_block.inner(map_panel), game);
+    frame.render_widget(
+        widgets::Paragraph::new(map_strings).block(map_block),
+        map_panel,
+    );
 }
 
 /// Split the available frame size in three blocks:
@@ -128,14 +131,13 @@ fn layout(frame_size: layout::Rect) -> [layout::Rect; 3] {
     [vertical_chunks[0], vertical_chunks[1], horizontal_chunks[1]]
 }
 
-// TODO consider making this tui-rs agnostic
 fn map_as_text(area: layout::Rect, game: &Game) -> Vec<text::Spans<'static>> {
     // When a dimension (horizontal or vertical) fits entirely in the terminal view,
     // it will be drawn at a fixed position (the character will move in that direction but not the map).
     // When it doesn't fit, the character will be fixed at the center of the view for that dimension,
     // and the map will scroll when the character moves.
-    let map_fits_width = game.map().width < area.width - 2;
-    let map_fits_height = game.map().height < area.height - 2;
+    let map_fits_width = game.map().width < area.width;
+    let map_fits_height = game.map().height < area.height;
 
     // These offsets are used when converting terminal rect coordinates to the map coordinates.
     // When the dimension fits the view, it adds padding so the map is centered in the screen,
@@ -156,10 +158,10 @@ fn map_as_text(area: layout::Rect, game: &Game) -> Vec<text::Spans<'static>> {
 
     // loop through all visible terminal positions, building a span of text for each row in the map
     let mut rows = Vec::new();
-    for vy in 1..area.height - 1 {
+    for vy in 0..area.height {
         let mut row = String::new();
 
-        for vx in 1..area.width - 1 {
+        for vx in 0..area.width {
             // convert the view coordinates to map coordinates
             let mx = (h_offset + vx).checked_sub(area.width / 2);
             let my = (v_offset + vy).checked_sub(area.height / 2);
