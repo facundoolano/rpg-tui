@@ -20,7 +20,7 @@ fn main() -> Result<(), io::Error> {
     let mut game = Game::new();
 
     loop {
-        terminal.draw(|f| render(&game, f))?;
+        terminal.draw(|frame| render(&game, frame))?;
 
         if let Event::Key(key) = event::read()? {
             match key.code {
@@ -140,19 +140,20 @@ fn map_as_text(area: layout::Rect, game: &Game) -> Vec<text::Spans<'static>> {
     // When the dimension fits the view, it adds padding so the map is centered in the screen,
     // when when it doesn't, it moves the map to fix the character in the center of the screen.
     // Full-disclosure: I reasoned about both cases separately but found that the code was the same safe this offset
-    let character = &game.character_position;
+    let char_x = game.character_position.x;
+    let char_y = game.character_position.y;
     let h_offset = if map_fits_width {
         game.map().width / 2
     } else {
-        character.x
+        char_x
     };
     let v_offset = if map_fits_height {
         game.map().height / 2
     } else {
-        character.y
+        char_y
     };
 
-    // loop through all visible terminal positions
+    // loop through all visible terminal positions, building a span of text for each row in the map
     let mut rows = Vec::new();
     for vy in 1..area.height - 1 {
         let mut row = String::new();
@@ -162,14 +163,16 @@ fn map_as_text(area: layout::Rect, game: &Game) -> Vec<text::Spans<'static>> {
             let mx = (h_offset + vx).checked_sub(area.width / 2);
             let my = (v_offset + vy).checked_sub(area.height / 2);
 
+            // if there's a tile at this position, push its ascii representation to the text row
+            // otherwise just add an empty space
             let tile = match (mx, my) {
-                (Some(x), Some(y)) if (x, y) == (character.x, character.y) => Some(Tile::Character),
+                (Some(x), Some(y)) if (x, y) == (char_x, char_y) => Some(Tile::Character),
                 (Some(x), Some(y)) => game.map().tile_at(&Position { x, y }),
                 _ => None,
             };
 
             if let Some(tile) = tile {
-                row.push_str(tile.to_string());
+                row.push_str(&tile.to_string());
             } else {
                 row.push(' ');
             }
@@ -286,9 +289,6 @@ struct Map {
 }
 
 impl Map {
-    // for now working with a fixed map size and assuming that the view size
-    // is the same. later those can be separated and scrolling can be introduced
-    // to handle bigger maps and smaller terminal sizes.
     const MIN_WIDTH: u16 = 20;
     const MAX_WIDTH: u16 = 100;
     const MIN_HEIGHT: u16 = 10;
@@ -371,16 +371,16 @@ enum Tile {
     LadderDown,
 }
 
-impl Tile {
-    // FIXME probably use some standard trait for this
-    fn to_string(&self) -> &'static str {
-        match self {
-            Tile::Wall => "#",
-            Tile::Ground => ".",
-            Tile::Character => "@",
-            Tile::LadderUp => "↑",
-            Tile::LadderDown => "↓",
-        }
+impl std::fmt::Display for Tile {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let char = match self {
+            Tile::Wall => '#',
+            Tile::Ground => '.',
+            Tile::Character => '@',
+            Tile::LadderUp => '↑',
+            Tile::LadderDown => '↓',
+        };
+        write!(f, "{}", char)
     }
 }
 
