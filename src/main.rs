@@ -160,8 +160,8 @@ fn map_as_text(area: layout::Rect, game: &Game) -> Vec<text::Spans<'static>> {
 
         for vx in 1..area.width - 1 {
             // convert the view coordinates to map coordinates
-            let mx = (h_offset + vx - 1).checked_sub(area.width / 2);
-            let my = (v_offset + vy - 1).checked_sub(area.height / 2);
+            let mx = (h_offset + vx).checked_sub(area.width / 2);
+            let my = (v_offset + vy).checked_sub(area.height / 2);
 
             let tile = match (mx, my) {
                 (Some(x), Some(y)) if (x, y) == (char_pos.x, char_pos.y) => Some(Tile::Character),
