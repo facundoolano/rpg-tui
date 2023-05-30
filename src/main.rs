@@ -52,7 +52,7 @@ fn render(game: &Game, frame: &mut TerminalFrame) {
     // for now the panel is empty.
 
     // TODO add helpers for more readable styles
-    // these could eventually be turned into custom rust-tui widgets
+    // these could eventually be turned into custom tui-rs widgets
     let underlined = style::Style::default().add_modifier(style::Modifier::UNDERLINED);
     let separator = text::Span::raw(" | ");
 
@@ -128,6 +128,7 @@ fn layout(frame_size: layout::Rect) -> [layout::Rect; 3] {
     [vertical_chunks[0], vertical_chunks[1], horizontal_chunks[1]]
 }
 
+// TODO consider making this tui-rs agnostic
 fn map_as_text(area: layout::Rect, game: &Game) -> Vec<text::Spans<'static>> {
     // When a dimension (horizontal or vertical) fits entirely in the terminal view,
     // it will be drawn at a fixed position (the character will move in that direction but not the map).
@@ -245,36 +246,36 @@ impl Game {
     /// (e.g. if there isn't a wall there). If the destination is an up or down ladder,
     /// move the character to the corresponding floor.
     fn move_to(&mut self, dest_position: Position) {
-        // when the character steps into a ladder it needs to be moved over
-        // to the matching ladder on the next or previous floor.
-        // New floors are added when going down to an unvisited floor
         match self.map().tile_at(&dest_position) {
-            Some(Tile::LadderUp) => {
-                self.floor -= 1;
-
-                // start at the ladder
-                self.character_position = self
-                    .map()
-                    .find_tile(Tile::LadderDown)
-                    .expect("all floors have a ladder down");
-            }
+            // When stepping on a down ladder, move to the next floor at the position of the up ladder.
+            // The map is created if the floor hasn't been visited before
             Some(Tile::LadderDown) => {
                 self.floor += 1;
 
                 if self.floor == self.maps.len() {
-                    // haven't been to this floor before, need to create a new one
                     self.maps.push(Map::new(self.floor));
                 }
 
-                // start at the ladder
                 self.character_position = self
                     .map()
                     .find_tile(Tile::LadderUp)
                     .expect("all non zero floors have a ladder up");
             }
-            // assuming the character is always in a room, it can move as long as its not walking into a wall
-            // this may change if we add non blocking entities or tiles in the map
+
+            // When stepping on a down ladder, move to the previous floor at the position of the down ladder.
+            Some(Tile::LadderUp) => {
+                self.floor -= 1;
+
+                self.character_position = self
+                    .map()
+                    .find_tile(Tile::LadderDown)
+                    .expect("all floors have a ladder down");
+            }
+
+            // Do nothing if attempting to move into a wall.
             Some(Tile::Wall) => {}
+
+            // Otherwise update the current position
             _ => {
                 self.character_position = dest_position;
             }
