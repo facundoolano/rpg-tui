@@ -241,18 +241,10 @@ impl Game {
     /// (e.g. if there isn't a wall there). If the destination is an up or down ladder,
     /// move the character to the corresponding floor.
     fn move_to(&mut self, dest_position: Position) {
-        let is_wall = self.map().tile_at(&dest_position) == Some(Tile::Wall);
-
-        // assuming character is always inside a room, it can move as long as its not walking into a wall
-        // this will change if there are other non walkable entities or tiles in the map
-        if self.character_position.y > 0 && !is_wall {
-            self.character_position = dest_position;
-        }
-
-        // when, after applying a movement, the character steps into a ladder
-        // it needs to be moved over to the matching ladder on the next or previous floor.
+        // when the character steps into a ladder it needs to be moved over
+        // to the matching ladder on the next or previous floor.
         // New floors are added when going down to an unvisited floor
-        match self.map().tile_at(&self.character_position) {
+        match self.map().tile_at(&dest_position) {
             Some(Tile::LadderUp) => {
                 self.floor -= 1;
 
@@ -276,7 +268,12 @@ impl Game {
                     .find_tile(Tile::LadderUp)
                     .expect("all non zero floors have a ladder up");
             }
-            _ => {}
+            // assuming the character is always in a room, it can move as long as its not walking into a wall
+            // this may change if we add non blocking entities or tiles in the map
+            Some(Tile::Wall) => {}
+            _ => {
+                self.character_position = dest_position;
+            }
         }
     }
 }
