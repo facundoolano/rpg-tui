@@ -129,8 +129,6 @@ fn layout(frame_size: layout::Rect) -> [layout::Rect; 3] {
 }
 
 fn map_as_text(area: layout::Rect, game: &Game) -> Vec<text::Spans<'static>> {
-    let char_pos = &game.character_position;
-
     // When a dimension (horizontal or vertical) fits entirely in the terminal view,
     // it will be drawn at a fixed position (the character will move in that direction but not the map).
     // When it doesn't fit, the character will be fixed at the center of the view for that dimension,
@@ -142,15 +140,16 @@ fn map_as_text(area: layout::Rect, game: &Game) -> Vec<text::Spans<'static>> {
     // When the dimension fits the view, it adds padding so the map is centered in the screen,
     // when when it doesn't, it moves the map to fix the character in the center of the screen.
     // Full-disclosure: I reasoned about both cases separately but found that the code was the same safe this offset
+    let character = &game.character_position;
     let h_offset = if map_fits_width {
         game.map().width / 2
     } else {
-        char_pos.x
+        character.x
     };
     let v_offset = if map_fits_height {
         game.map().height / 2
     } else {
-        char_pos.y
+        character.y
     };
 
     // loop through all visible terminal positions
@@ -164,7 +163,7 @@ fn map_as_text(area: layout::Rect, game: &Game) -> Vec<text::Spans<'static>> {
             let my = (v_offset + vy).checked_sub(area.height / 2);
 
             let tile = match (mx, my) {
-                (Some(x), Some(y)) if (x, y) == (char_pos.x, char_pos.y) => Some(Tile::Character),
+                (Some(x), Some(y)) if (x, y) == (character.x, character.y) => Some(Tile::Character),
                 (Some(x), Some(y)) => game.map().tile_at(&Position { x, y }),
                 _ => None,
             };
@@ -190,7 +189,8 @@ struct Game {
 }
 
 impl Game {
-    /// TODO
+    /// Start a game with an initial map for the ground floor.
+    /// Additional maps will be added as the player moves down.
     pub fn new() -> Self {
         let first_map = Map::new(0);
         let character_position = first_map.random_unocuppied_position();
@@ -201,6 +201,7 @@ impl Game {
         }
     }
 
+    /// Return the map the player is currently at.
     pub fn map(&self) -> &Map {
         &self.maps[self.floor]
     }
@@ -383,7 +384,6 @@ impl Tile {
     }
 }
 
-// TODO make this interoperable with tuples
 #[derive(Eq, Hash, PartialEq, Clone)]
 struct Position {
     pub x: u16,
