@@ -145,50 +145,51 @@ fn map_as_strings(game: &Game, view_width: u16, view_height: u16) -> Vec<String>
     let char_x = game.character_position.x;
     let char_y = game.character_position.y;
 
-    // These offsets are used when converting terminal rect coordinates to the map coordinates.
-    let h_offset = if game.map().width < view_width {
-        // When the dimension fits the view, the offset adds padding so the map is centered on the screen
-        game.map().width / 2
-    } else {
-        // When when it doesn't, the offset scrolls the map to fix the character in the center
-        char_x
-    };
-    // same for the vertical coordinates (the map may fit on one direction and not the other)
-    let v_offset = if game.map().height < view_height {
-        game.map().height / 2
-    } else {
-        char_y
-    };
-
     // loop through all visible terminal positions, building a span of text for each row in the map
     let mut rows = Vec::new();
     for vy in 0..view_height {
         let mut row = String::new();
 
         for vx in 0..view_width {
-            // Convert the view coordinates to map coordinates.
-            let mx = (h_offset + vx).checked_sub(view_width / 2);
-            let my = (v_offset + vy).checked_sub(view_height / 2);
+            let mx = to_world_coords(vx, char_x, view_width, game.map().width);
+            let my = to_world_coords(vy, char_y, view_height, game.map().height);
 
             // if there's a tile at this position, push its ascii representation to the text row
             // otherwise just add an empty space
             let tile = match (mx, my) {
-                (Some(x), Some(y)) if (x, y) == (char_x, char_y) => Some(Tile::Character),
-                (Some(x), Some(y)) => game.map().tile_at(&Position { x, y }),
-                _ => None,
+                (Some(x), Some(y)) if (x, y) == (char_x, char_y) => Tile::Character.to_string(),
+                (Some(x), Some(y)) => game
+                    .map()
+                    .tile_at(&Position { x, y })
+                    .map_or(" ".to_string(), |t| t.to_string()),
+                _ => " ".to_string(),
             };
 
-            if let Some(tile) = tile {
-                row.push_str(&tile.to_string());
-            } else {
-                row.push(' ');
-            }
+            row.push_str(&tile);
         }
 
         rows.push(row);
     }
 
     rows
+}
+
+/// Convert a view coordinate to a map coordinate, with different strategies depending on
+/// view and map relative sizes as well as character position.
+fn to_world_coords(view_x: u16, player_x: u16, view_width: u16, map_width: u16) -> Option<u16> {
+    if map_width < view_width {
+        // When the dimension fits the view, the offset adds padding so the map is centered on the screen
+        (view_x + map_width / 2).checked_sub(view_width / 2)
+    } else if player_x <= view_width / 2 {
+        // if player is close to the starting edge of the map, fix the map at that edge and move the player
+        Some(view_x)
+    } else if player_x >= map_width - view_width / 2 {
+        // if player is close to the final edge of the map, fix the map at that edge and move the player
+        Some(view_x + map_width - view_width)
+    } else {
+        // if player is not close to the edges, fix the player at the center and scroll the map
+        Some(view_x + player_x - view_width / 2)
+    }
 }
 
 struct Game {
