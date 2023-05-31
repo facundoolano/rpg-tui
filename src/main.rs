@@ -104,9 +104,14 @@ fn render(game: &Game, frame: &mut TerminalFrame) {
             game.floor, game.character_position.x, game.character_position.y
         ))
         .borders(widgets::Borders::ALL);
-    let map_strings = map_as_text(map_block.inner(map_panel), game);
+    let map_container = map_block.inner(map_panel);
+    let map_spans: Vec<_> = map_as_strings(game, map_container.width, map_container.height)
+        .into_iter()
+        .map(text::Spans::from)
+        .collect();
+
     frame.render_widget(
-        widgets::Paragraph::new(map_strings).block(map_block),
+        widgets::Paragraph::new(map_spans).block(map_block),
         map_panel,
     );
 }
@@ -131,26 +136,25 @@ fn layout(frame_size: layout::Rect) -> [layout::Rect; 3] {
     [vertical_chunks[0], vertical_chunks[1], horizontal_chunks[1]]
 }
 
-fn map_as_text(area: layout::Rect, game: &Game) -> Vec<text::Spans<'static>> {
-    // When a dimension (horizontal or vertical) fits entirely in the terminal view,
-    // it will be drawn at a fixed position (the character will move in that direction but not the map).
-    // When it doesn't fit, the character will be fixed at the center of the view for that dimension,
-    // and the map will scroll when the character moves.
-    let map_fits_width = game.map().width < area.width;
-    let map_fits_height = game.map().height < area.height;
-
-    // These offsets are used when converting terminal rect coordinates to the map coordinates.
-    // When the dimension fits the view, it adds padding so the map is centered in the screen,
-    // when when it doesn't, it moves the map to fix the character in the center of the screen.
-    // Full-disclosure: I reasoned about both cases separately but found that the code was the same safe this offset
+/// Return a vector of strings representing the current map according to the player position
+/// and available terminal view size. When a dimension (horizontal or vertical) fits entirely in the view,
+/// the map will be centered in the screen in that direction.
+/// When it doesn't fit, the character will be fixed at the center of the view for that dimension,
+/// and the map will scroll when the character moves.
+fn map_as_strings(game: &Game, view_width: u16, view_height: u16) -> Vec<String> {
     let char_x = game.character_position.x;
     let char_y = game.character_position.y;
-    let h_offset = if map_fits_width {
+
+    // These offsets are used when converting terminal rect coordinates to the map coordinates.
+    let h_offset = if game.map().width < view_width {
+        // When the dimension fits the view, the offset adds padding so the map is centered on the screen
         game.map().width / 2
     } else {
+        // When when it doesn't, the offset scrolls the map to fix the character in the center
         char_x
     };
-    let v_offset = if map_fits_height {
+    // same for the vertical coordinates (the map may fit on one direction and not the other)
+    let v_offset = if game.map().height < view_height {
         game.map().height / 2
     } else {
         char_y
@@ -158,13 +162,13 @@ fn map_as_text(area: layout::Rect, game: &Game) -> Vec<text::Spans<'static>> {
 
     // loop through all visible terminal positions, building a span of text for each row in the map
     let mut rows = Vec::new();
-    for vy in 0..area.height {
+    for vy in 0..view_height {
         let mut row = String::new();
 
-        for vx in 0..area.width {
-            // convert the view coordinates to map coordinates
-            let mx = (h_offset + vx).checked_sub(area.width / 2);
-            let my = (v_offset + vy).checked_sub(area.height / 2);
+        for vx in 0..view_width {
+            // Convert the view coordinates to map coordinates.
+            let mx = (h_offset + vx).checked_sub(view_width / 2);
+            let my = (v_offset + vy).checked_sub(view_height / 2);
 
             // if there's a tile at this position, push its ascii representation to the text row
             // otherwise just add an empty space
@@ -181,7 +185,7 @@ fn map_as_text(area: layout::Rect, game: &Game) -> Vec<text::Spans<'static>> {
             }
         }
 
-        rows.push(text::Spans::from(row));
+        rows.push(row);
     }
 
     rows
