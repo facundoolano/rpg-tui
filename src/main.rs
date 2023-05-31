@@ -157,15 +157,12 @@ fn map_as_strings(game: &Game, view_width: u16, view_height: u16) -> Vec<String>
             // if there's a tile at this position, push its ascii representation to the text row
             // otherwise just add an empty space
             let tile = match (mx, my) {
-                (Some(x), Some(y)) if (x, y) == (char_x, char_y) => Tile::Character.to_string(),
-                (Some(x), Some(y)) => game
-                    .map()
-                    .tile_at(&Position { x, y })
-                    .map_or(" ".to_string(), |t| t.to_string()),
-                _ => " ".to_string(),
+                (Some(x), Some(y)) if (x, y) == (char_x, char_y) => Tile::Character,
+                (Some(x), Some(y)) => game.map().tile_at(&Position { x, y }),
+                _ => Tile::Empty,
             };
 
-            row.push_str(&tile);
+            row.push_str(&tile.to_string());
         }
 
         rows.push(row);
@@ -178,7 +175,8 @@ fn map_as_strings(game: &Game, view_width: u16, view_height: u16) -> Vec<String>
 /// view and map relative sizes as well as character position.
 fn to_world_coords(view_x: u16, player_x: u16, view_width: u16, map_width: u16) -> Option<u16> {
     if map_width < view_width {
-        // When the dimension fits the view, the offset adds padding so the map is centered on the screen
+        // When the map fits in the view, padding is added so the map is centered in the screen.
+        // This underflows for view points in the starting padding area
         (view_x + map_width / 2).checked_sub(view_width / 2)
     } else if player_x <= view_width / 2 {
         // if player is close to the starting edge of the map, fix the map at that edge and move the player
@@ -256,7 +254,7 @@ impl Game {
         match self.map().tile_at(&dest_position) {
             // When stepping on a down ladder, move to the next floor at the position of the up ladder.
             // The map is created if the floor hasn't been visited before
-            Some(Tile::LadderDown) => {
+            Tile::LadderDown => {
                 self.floor += 1;
 
                 if self.floor == self.maps.len() {
@@ -270,7 +268,7 @@ impl Game {
             }
 
             // When stepping on a down ladder, move to the previous floor at the position of the down ladder.
-            Some(Tile::LadderUp) => {
+            Tile::LadderUp => {
                 self.floor -= 1;
 
                 self.character_position = self
@@ -280,7 +278,7 @@ impl Game {
             }
 
             // Do nothing if attempting to move into a wall.
-            Some(Tile::Wall) => {}
+            Tile::Wall => {}
 
             // Otherwise update the current position
             _ => {
@@ -346,8 +344,8 @@ impl Map {
         None
     }
 
-    pub fn tile_at(&self, position: &Position) -> Option<Tile> {
-        self.tiles.get(position).cloned()
+    pub fn tile_at(&self, position: &Position) -> Tile {
+        self.tiles.get(position).cloned().unwrap_or(Tile::Empty)
     }
 
     /// Return a random position within the map that can be used to place an object.
@@ -377,6 +375,7 @@ enum Tile {
     Character,
     LadderUp,
     LadderDown,
+    Empty,
 }
 
 impl std::fmt::Display for Tile {
@@ -387,6 +386,7 @@ impl std::fmt::Display for Tile {
             Tile::Character => '@',
             Tile::LadderUp => '↑',
             Tile::LadderDown => '↓',
+            Tile::Empty => ' ',
         };
         write!(f, "{}", char)
     }
